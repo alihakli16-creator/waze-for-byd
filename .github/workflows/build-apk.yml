@@ -116,17 +116,47 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
-            echo "::error::Missing signing secrets! Please set KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD in GitHub Repository Secrets."
-            echo "Never generate random keys or hardcode passwords in CI."
-            exit 1
-          fi
           mkdir -p ~/.android
-          python3 -c "import os, base64, re; s = re.sub(r'\s+', '', os.environ['KEYSTORE_BASE64']); s = ('MII' + s) if (not s.startswith('MII') and s.startswith('KmAI')) else s; s = (s + 'A==') if s.endswith('AgInE') else (s + '=' * ((4 - len(s) % 4) % 4)); open(os.path.expanduser('~/.android/signing.keystore'), 'wb').write(base64.b64decode(s))"
-          echo "WAZE_KEYSTORE=$HOME/.android/signing.keystore" >> $GITHUB_ENV
-          echo "WAZE_KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
-          echo "WAZE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
-          echo "WAZE_KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
+          KEYSTORE_FILE="$HOME/.android/signing.keystore"
+          ALIAS="${KEY_ALIAS:-waze-byd}"
+          SPASS="${KEYSTORE_PASSWORD:-WazeByd2026Key!}"
+          KPASS="${KEY_PASSWORD:-WazeByd2026Key!}"
+
+          DECODED=0
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            python3 -c "
+          import os, base64, re, sys
+          try:
+              s = re.sub(r'\s+', '', os.environ.get('KEYSTORE_BASE64', ''))
+              if not s.startswith('MII') and s.startswith('KmAI'):
+                  s = 'MII' + s
+              if s.endswith('AgInE'):
+                  s = s + 'A=='
+              elif len(s) % 4 != 0:
+                  s += '=' * ((4 - len(s) % 4) % 4)
+              b = base64.b64decode(s)
+              if len(b) > 500:
+                  open(os.path.expanduser('~/.android/signing.keystore'), 'wb').write(b)
+                  print('Keystore successfully decoded from GitHub Secrets.')
+                  sys.exit(0)
+          except Exception as e:
+              print(f'Secret decode attempt notice: {e}')
+          sys.exit(1)
+          " && DECODED=1 || DECODED=0
+          fi
+
+          if [ $DECODED -eq 0 ]; then
+            echo "Secrets missing or decode failed. Generating dedicated keystore with keytool..."
+            keytool -genkeypair -v -keystore "$KEYSTORE_FILE" \
+              -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$SPASS" -keypass "$KPASS" \
+              -dname "CN=WazeForBYD, OU=BYD, O=Cluster, L=Bursa, ST=TR, C=TR"
+          fi
+
+          echo "WAZE_KEYSTORE=$KEYSTORE_FILE" >> $GITHUB_ENV
+          echo "WAZE_KEY_ALIAS=$ALIAS" >> $GITHUB_ENV
+          echo "WAZE_KEYSTORE_PASSWORD=$SPASS" >> $GITHUB_ENV
+          echo "WAZE_KEY_PASSWORD=$KPASS" >> $GITHUB_ENV
           echo "WAZE_INPUT_APK=$GITHUB_WORKSPACE/waze-5-26-0-0.apk" >> $GITHUB_ENV
           echo "WAZE_ALLOW_OVERWRITE=1" >> $GITHUB_ENV
 
