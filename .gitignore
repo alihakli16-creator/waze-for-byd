@@ -15,7 +15,6 @@
 *.idsig
 *.sha256
 *.keystore
-!/patch/test.keystore
 *.jks
 *.pem
 *.key

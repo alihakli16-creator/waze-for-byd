@@ -441,7 +441,7 @@ public final class ClusterHost implements DisplayManager.DisplayListener {
     }
     private void reconcileDiLink3() {
         ClusterSettings.State s = ClusterSettings.state(app);
-        boolean active = s.mapEnabled && s.dilink3Enabled;
+        boolean active = s.mapEnabled && DiLink3Projection.enabled();
         DiLink3Projection.reconcile(active);
         if (!active) {
             if (presentation != null) dismissMap();

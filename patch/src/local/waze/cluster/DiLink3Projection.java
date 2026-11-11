@@ -68,7 +68,7 @@ public final class DiLink3Projection {
     private static volatile boolean autoResumeOk, failedThisProcess, autoResumeReported;
     private static final AtomicBoolean autoResumeUsed = new AtomicBoolean();
     private static volatile boolean ownedByWaze;
-    private static volatile String lastSeenBuild = "bilinmiyor / unknown", lastSeenProduct = "bilinmiyor / unknown";
+    private static volatile String lastSeenBuild = "bilinmiyor / unknown", lastSeenProduct = "bilinmiyor / unknown", lastSeenAdapter = "bilinmiyor / unknown";
 
     private DiLink3Projection() {}
 
@@ -96,7 +96,8 @@ public final class DiLink3Projection {
 
     public static String diLink3Diagnostics() {
         return "SDK=" + Build.VERSION.SDK_INT + ", Candidate=" + isCandidate()
-                + ", State=" + state + ", Build=" + lastSeenBuild + ", Product=" + lastSeenProduct;
+                + ", State=" + state + ", Build=" + lastSeenBuild + ", Product=" + lastSeenProduct
+                + ", Adapter=" + lastSeenAdapter;
     }
 
     public static void init(Application application, Runnable onChanged) {
@@ -168,6 +169,41 @@ public final class DiLink3Projection {
         if (activity == null || activity.isFinishing() || activity.isDestroyed() || !isCandidate() || !loaded) { finish(done); return; }
         paused = false; invalidate(); attempts = 3; nextAttempt = 0; final long epoch = generation.get();
         worker.execute(() -> { try { runLatest(epoch, allowKey, true, true); } finally { finish(done); } });
+    }
+
+    /**
+     * Authorize ADB connection only without altering cluster projection or AutoContainer state.
+     * Triggers RSA key approval prompt if not yet authorized, runs preflight, and records device details.
+     */
+    public static void authorizeOnly(Activity activity, Runnable done) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed() || !isCandidate()) {
+            finish(done);
+            return;
+        }
+        init(activity.getApplication(), null);
+        state = "ADB bağlantısı kuruluyor ve RSA anahtarı talep ediliyor… / Connecting ADB and requesting RSA key…";
+        notifyChanged();
+        worker.execute(() -> {
+            try {
+                try (VehicleLocalAdb adb = VehicleLocalAdb.open(context.getNoBackupFilesDir(), true, () -> true)) {
+                    preflight(adb);
+                    state = "ADB yetkilendirildi! Ön kontrol başarılı.\nCihaz: " + lastSeenBuild + " / " + lastSeenProduct
+                            + "\nAMap Servisi: " + lastSeenAdapter
+                            + "\nADB authorized! Preflight OK. Ready for projection.";
+                } catch (VehicleLocalAdb.ApprovalRequiredException e) {
+                    state = "Waze ADB anahtarını ekrandan onaylayın ('Her zaman izin ver'), ardından tekrar deneyin.\nApprove Waze ADB RSA key ('Always allow'), then retry.";
+                } catch (VehicleLocalAdb.ConnectionRefusedException e) {
+                    state = e.getMessage();
+                } catch (Failure f) {
+                    state = "ADB ön kontrol başarısız: " + failureStatus(f.code);
+                } catch (Exception e) {
+                    state = "ADB bağlantı hatası (" + e.getClass().getSimpleName() + "). Ağ ADB'yi kontrol edin.\nADB connection failed. Check network ADB.";
+                }
+                notifyChanged();
+            } finally {
+                finish(done);
+            }
+        });
     }
 
     /**
@@ -450,11 +486,26 @@ public final class DiLink3Projection {
             throw new Failure("build");
         }
         if (!"Service AutoContainer: found".equals(adb.execute("service check AutoContainer").trim())) throw new Failure("service");
-        String paths = adb.execute("pm path --user " + user + " com.example.amapservice").trim();
-        if (paths.isEmpty() || paths.length() > 4096) throw new Failure("adapter");
-        String[] lines = paths.split("\\r?\\n", -1);
-        if (lines.length > 16) throw new Failure("adapter");
-        for (String line : lines) if (!line.matches("package:/[A-Za-z0-9_./=+~%-]+\\.apk")) throw new Failure("adapter");
+
+        // Check AMap packages without blocking projection if missing
+        boolean hasExample = false, hasByd = false;
+        try {
+            String pExample = adb.execute("pm path --user " + user + " com.example.amapservice").trim();
+            hasExample = pExample.startsWith("package:") && pExample.contains(".apk");
+        } catch (Exception ignored) {}
+        try {
+            String pByd = adb.execute("pm path --user " + user + " com.byd.amapservice").trim();
+            hasByd = pByd.startsWith("package:") && pByd.contains(".apk");
+        } catch (Exception ignored) {}
+
+        if (hasExample && hasByd) lastSeenAdapter = "com.example.amapservice ve com.byd.amapservice mevcut";
+        else if (hasExample) lastSeenAdapter = "com.example.amapservice mevcut";
+        else if (hasByd) lastSeenAdapter = "com.byd.amapservice mevcut";
+        else {
+            lastSeenAdapter = "bulunamadı / not found";
+            Log.w(TAG, "Neither com.example.amapservice nor com.byd.amapservice found; turn guidance may be inactive");
+        }
+
         if (!user.equals(currentUser(adb))) throw new Failure("user");
         return user;
     }

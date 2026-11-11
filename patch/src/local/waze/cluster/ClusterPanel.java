@@ -309,7 +309,36 @@ public final class ClusterPanel {
         panel.setOrientation(LinearLayout.VERTICAL);
         // Generous padding keeps switches and buttons away from the panel edges on the car screen.
         panel.setPadding(dp(c, 20), dp(c, 16), dp(c, 20), dp(c, 16));
+
+        LimitedScroll scroll = new LimitedScroll(c);
+        scroll.addView(panel);
+
         ClusterSettings.State s = ClusterSettings.state(activity);
+        AlertDialog dialog = new AlertDialog.Builder(c).setTitle("Gösterge Paneli (Cluster)").setView(scroll)
+                .setNeutralButton("Tam Ekran", null).setPositiveButton("Tamam", null).create();
+        final boolean[] full = {s.panelFullscreen};
+        // Keys go to the focused window, which is this panel while it is open.
+        dialog.setOnKeyListener((d, code, event) -> WheelKeys.handle(activity, event, "panel"));
+        dialog.setOnDismissListener(d -> WheelKeys.cancelLearning());
+        dialog.setOnShowListener(d -> {
+            // Switching the size keeps the panel open; the choice is remembered for next time.
+            dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                full[0] = !full[0];
+                preferences.edit().putBoolean(ClusterSettings.PANEL_FULLSCREEN, full[0]).apply();
+                layout(activity, dialog, scroll, full[0]);
+            });
+            layout(activity, dialog, scroll, full[0]);
+        });
+
+        populatePanel(panel, activity, dialog, scroll);
+        dialog.show();
+    }
+
+    private static void populatePanel(LinearLayout panel, Activity activity, AlertDialog dialog, LimitedScroll scroll) {
+        panel.removeAllViews();
+        Context c = panel.getContext();
+        ClusterSettings.State s = ClusterSettings.state(activity);
+
         toggle(panel, c, "Haritayı gösterge panelinde göster", ClusterSettings.MAP_ENABLED, s.mapEnabled);
         toggle(panel, c, "Dönüş yönlendirmelerini gösterge ve HUD'a gönder", ClusterSettings.VEHICLE_GUIDANCE, s.vehicleGuidance);
         panel.addView(label(c, ClusterStatus.hud() + " Aynı anda yalnızca bir HUD navigasyon uygulaması kullanın.", 14));
@@ -355,106 +384,137 @@ public final class ClusterPanel {
         panel.addView(button(c, "BYD Varsayılan Tuşlarını Yükle", v -> WheelKeys.restoreTang(activity)), spaced(c));
         panel.addView(label(c, "Son Algılanan Tuşlar", 14));
         panel.addView(wheelKeys);
-        // Android 13 BYD builds (DiLink 5.1) or Android 10 DiLink 3 candidate; also kept visible once the owner has chosen a profile.
-        if (Build.VERSION.SDK_INT >= 33 || DiLink3Projection.isCandidate() || s.profile != DiLink51Layout.Profile.AUTOMATIC) {
-            panel.addView(label(c, "Gösterge Düzeni (Cluster Layout)", 18));
-            final DiLink51Layout.Profile[] PROFILES = {
-                DiLink51Layout.Profile.AUTOMATIC,
-                DiLink51Layout.Profile.DILINK3,
-                DiLink51Layout.Profile.DILINK51,
-                DiLink51Layout.Profile.DILINK5
-            };
-            final String[] PROFILE_LABELS = { "Otomatik", "DiLink 3", "DiLink 5.1", "DiLink 5" };
-            int selectedProfile = 0;
-            for (int i = 0; i < PROFILES.length; i++) {
-                if (PROFILES[i] == s.profile) { selectedProfile = i; break; }
-            }
-            options(panel, c, "Düzen Profili", PROFILE_LABELS, selectedProfile,
-                    i -> preferences.edit().putString(ClusterSettings.PROFILE, PROFILES[i].name()).apply());
 
-            if (DiLink3Projection.isCandidate() || s.profile == DiLink51Layout.Profile.DILINK3) {
-                Switch d3Switch = new Switch(c);
-                d3Switch.setText("DiLink 3 gösterge yansıtmasını etkinleştir (deneysel)");
-                d3Switch.setTextSize(18);
-                d3Switch.setMinHeight(dp(c, 56));
-                d3Switch.setChecked(s.dilink3Enabled);
-                d3Switch.setOnCheckedChangeListener((v, on) -> {
-                    if (on && !s.dilink3Enabled) {
-                        new AlertDialog.Builder(activity)
-                                .setTitle("DiLink 3 Gösterge Yansıtması")
-                                .setMessage("Bu özellik deneyseldir ve aracınızın yerel ADB (127.0.0.1:5555) servisini kullanır. Lütfen yalnızca araç PARK HALİNDEYKEN etkinleştirin.\n\nEtkinleştirmek istiyor musunuz?")
-                                .setPositiveButton("Etkinleştir", (d, w) -> {
-                                    preferences.edit().putBoolean(ClusterSettings.DILINK3_ENABLED, true).apply();
-                                    d3Switch.setChecked(true);
-                                })
-                                .setNegativeButton("İptal", (d, w) -> d3Switch.setChecked(false))
-                                .setOnCancelListener(d -> d3Switch.setChecked(false))
-                                .show();
-                    } else {
-                        preferences.edit().putBoolean(ClusterSettings.DILINK3_ENABLED, on).apply();
-                    }
-                });
-                panel.addView(d3Switch);
-                panel.addView(label(c, "DiLink 3 durumu: " + DiLink3Projection.status(), 13));
-            }
-
-            if (s.profile != DiLink51Layout.Profile.DILINK3 && (Build.VERSION.SDK_INT >= 33 || s.profile == DiLink51Layout.Profile.DILINK51)) {
-                options(panel, c, "Gösterge Teması", new String[]{"Senaryo", "Harita", "Basit", "Takip"}, s.mode.ordinal(),
-                        i -> preferences.edit().putString(ClusterSettings.MODE, DiLink51Layout.Mode.values()[i].name()).apply());
-                options(panel, c, "Harita Tema Arka Planı", new String[]{"Varsayılan", "Açık", "Koyu"}, s.contrast.ordinal(),
-                        i -> preferences.edit().putString(ClusterSettings.CONTRAST, DiLink51Layout.Contrast.values()[i].name()).apply());
-                panel.addView(label(c, "Otomatik seçeneği yalnızca doğrulanmış yazılımlarda DiLink 5.1 düzenini kullanır. Takip seçeneği göstergenin temasını izler ve bilgisayardan bir kez Kullanım Erişimi izni verilmesini gerektirir: adb shell appops set com.waze GET_USAGE_STATS allow", 14));
-            } else if (DiLink3Projection.isCandidate() || s.profile == DiLink51Layout.Profile.DILINK3) {
-                panel.addView(label(c, "DiLink 3 (Android 10): Takip teması ve DiLink 5.1 özellikleri desteklenmez. Yansıtma AutoContainer sanal ekranı üzerinden tam ekran sağlanır.", 13));
-            }
+        // --- GÖSTERGE DÜZENİ (CLUSTER LAYOUT) SECTION (Always visible, re-renders on radio change) ---
+        panel.addView(label(c, "Gösterge Düzeni (Cluster Layout)", 18));
+        final DiLink51Layout.Profile[] PROFILES = {
+            DiLink51Layout.Profile.AUTOMATIC,
+            DiLink51Layout.Profile.DILINK3,
+            DiLink51Layout.Profile.DILINK51,
+            DiLink51Layout.Profile.DILINK5
+        };
+        final String[] PROFILE_LABELS = { "Otomatik", "DiLink 3", "DiLink 5.1", "DiLink 5" };
+        int selectedProfile = 0;
+        for (int i = 0; i < PROFILES.length; i++) {
+            if (PROFILES[i] == s.profile) { selectedProfile = i; break; }
         }
-        if (DiLink3Projection.isCandidate() || s.profile == DiLink51Layout.Profile.DILINK3) {
-            panel.addView(button(c, "ADB İznini Başlat / Yetkilendir (Authorize ADB)", v -> {
-                Toast.makeText(activity, "ADB yetkilendirme ve gösterge kontrolü başlatılıyor…", Toast.LENGTH_SHORT).show();
-                DiLink3Projection.retry(activity, true, null);
-            }), spaced(c));
-            panel.addView(button(c, "Orijinal Göstergeyi Geri Yükle (Restore Stock Cluster)", v -> {
+        options(panel, c, "Düzen Profili", PROFILE_LABELS, selectedProfile, i -> {
+            preferences.edit().putString(ClusterSettings.PROFILE, PROFILES[i].name()).apply();
+            populatePanel(panel, activity, dialog, scroll);
+        });
+
+        // --- DILINK 3 SECTION (Visible on all devices; disabled with reason on non-candidate devices) ---
+        panel.addView(label(c, "DiLink 3 Yansıtma (Android 10)", 17));
+        final boolean isCandidate = DiLink3Projection.isCandidate();
+        final Switch d3Switch = new Switch(c);
+        d3Switch.setText("DiLink 3 gösterge yansıtmasını etkinleştir (deneysel)");
+        d3Switch.setTextSize(18);
+        d3Switch.setMinHeight(dp(c, 56));
+        d3Switch.setChecked(DiLink3Projection.enabled());
+        d3Switch.setEnabled(isCandidate);
+        panel.addView(d3Switch);
+
+        if (!isCandidate) {
+            TextView rej = label(c, DiLink3Projection.candidateRejectionReason(), 13);
+            rej.setTextColor(0xffff8800);
+            panel.addView(rej);
+        }
+
+        final TextView d3StatusText = label(c, "DiLink 3 durumu: " + DiLink3Projection.status(), 13);
+        panel.addView(d3StatusText);
+        final TextView d3DiagText = label(c, "DiLink 3 tanılaması: " + DiLink3Projection.diLink3Diagnostics(), 12);
+        panel.addView(d3DiagText);
+
+        d3Switch.setOnCheckedChangeListener((v, on) -> {
+            if (!isCandidate) {
+                d3Switch.setChecked(false);
+                Toast.makeText(activity, DiLink3Projection.candidateRejectionReason(), Toast.LENGTH_LONG).show();
+                return;
+            }
+            if (on && !DiLink3Projection.enabled()) {
                 new AlertDialog.Builder(activity)
-                        .setTitle("Göstergeyi Geri Yükle")
-                        .setMessage("Gösterge paneli sanal yansıtmadan çıkarılarak orijinal fabrika düzenine döndürülecektir. Onaylıyor musunuz?")
-                        .setPositiveButton("Geri Yükle", (dialog, which) -> {
-                            DiLink3Projection.forceRestore(activity, () -> {
-                                Toast.makeText(activity, "Orijinal gösterge düzenine dönüldü", Toast.LENGTH_SHORT).show();
+                        .setTitle("DiLink 3 Gösterge Yansıtması")
+                        .setMessage("Bu özellik deneyseldir ve aracınızın yerel ADB (127.0.0.1:5555) servisini kullanır. Lütfen yalnızca araç PARK HALİNDEYKEN etkinleştirin.\n\nEtkinleştirmek istiyor musunuz?")
+                        .setPositiveButton("Etkinleştir", (d, w) -> {
+                            preferences.edit().putBoolean(ClusterSettings.DILINK3_ENABLED, true).apply();
+                            DiLink3Projection.configure(activity, true, true, () -> {
+                                d3Switch.setChecked(DiLink3Projection.enabled());
+                                d3StatusText.setText("DiLink 3 durumu: " + DiLink3Projection.status());
+                                d3DiagText.setText("DiLink 3 tanılaması: " + DiLink3Projection.diLink3Diagnostics());
                             });
                         })
-                        .setNegativeButton("İptal", null)
+                        .setNegativeButton("İptal", (d, w) -> d3Switch.setChecked(false))
+                        .setOnCancelListener(d -> d3Switch.setChecked(false))
                         .show();
-            }), spaced(c));
+            } else if (!on && DiLink3Projection.enabled()) {
+                preferences.edit().putBoolean(ClusterSettings.DILINK3_ENABLED, false).apply();
+                DiLink3Projection.configure(activity, false, false, () -> {
+                    d3Switch.setChecked(DiLink3Projection.enabled());
+                    d3StatusText.setText("DiLink 3 durumu: " + DiLink3Projection.status());
+                    d3DiagText.setText("DiLink 3 tanılaması: " + DiLink3Projection.diLink3Diagnostics());
+                });
+            }
+        });
+
+        // DiLink 5.1 specific options or DiLink 3 notes
+        if (s.profile != DiLink51Layout.Profile.DILINK3 && (Build.VERSION.SDK_INT >= 33 || s.profile == DiLink51Layout.Profile.DILINK51)) {
+            options(panel, c, "Gösterge Teması", new String[]{"Senaryo", "Harita", "Basit", "Takip"}, s.mode.ordinal(),
+                    i -> preferences.edit().putString(ClusterSettings.MODE, DiLink51Layout.Mode.values()[i].name()).apply());
+            options(panel, c, "Harita Tema Arka Planı", new String[]{"Varsayılan", "Açık", "Koyu"}, s.contrast.ordinal(),
+                    i -> preferences.edit().putString(ClusterSettings.CONTRAST, DiLink51Layout.Contrast.values()[i].name()).apply());
+            panel.addView(label(c, "Otomatik seçeneği yalnızca doğrulanmış yazılımlarda DiLink 5.1 düzenini kullanır. Takip seçeneği göstergenin temasını izler ve bilgisayardan bir kez Kullanım Erişimi izni verilmesini gerektirir: adb shell appops set com.waze GET_USAGE_STATS allow", 14));
+        } else if (isCandidate || s.profile == DiLink51Layout.Profile.DILINK3) {
+            panel.addView(label(c, "DiLink 3 (Android 10): Takip teması ve DiLink 5.1 özellikleri desteklenmez. Yansıtma AutoContainer sanal ekranı üzerinden tam ekran sağlanır.", 13));
         }
+
+        // Action buttons: ADB Authorization and Restore Cluster
+        panel.addView(button(c, "ADB İznini Başlat / Yetkilendir (Authorize ADB)", v -> {
+            if (!isCandidate) {
+                Toast.makeText(activity, DiLink3Projection.candidateRejectionReason(), Toast.LENGTH_LONG).show();
+                return;
+            }
+            Toast.makeText(activity, "ADB yetkilendirme isteği gönderiliyor…", Toast.LENGTH_SHORT).show();
+            DiLink3Projection.authorizeOnly(activity, () -> {
+                d3StatusText.setText("DiLink 3 durumu: " + DiLink3Projection.status());
+                d3DiagText.setText("DiLink 3 tanılaması: " + DiLink3Projection.diLink3Diagnostics());
+            });
+        }), spaced(c));
+
+        panel.addView(button(c, "Orijinal Göstergeyi Geri Yükle (Restore Stock Cluster)", v -> {
+            if (!isCandidate) {
+                Toast.makeText(activity, DiLink3Projection.candidateRejectionReason(), Toast.LENGTH_LONG).show();
+                return;
+            }
+            new AlertDialog.Builder(activity)
+                    .setTitle("Göstergeyi Geri Yükle")
+                    .setMessage("Gösterge paneli sanal yansıtmadan çıkarılarak orijinal fabrika düzenine döndürülecektir. Onaylıyor musunuz?")
+                    .setPositiveButton("Geri Yükle", (dlg, which) -> {
+                        DiLink3Projection.forceRestore(activity, () -> {
+                            Toast.makeText(activity, "Orijinal gösterge düzenine dönüldü", Toast.LENGTH_SHORT).show();
+                            d3StatusText.setText("DiLink 3 durumu: " + DiLink3Projection.status());
+                            d3DiagText.setText("DiLink 3 tanılaması: " + DiLink3Projection.diLink3Diagnostics());
+                        });
+                    })
+                    .setNegativeButton("İptal", null)
+                    .show();
+        }), spaced(c));
+
         panel.addView(label(c, "Değişiklikler anında uygulanır ve otomatik kaydedilir.", 14));
         panel.addView(button(c, "Destek ve Tanılama", v -> {
             try { activity.startActivity(new Intent().setClassName(activity, "local.waze.diagnostics.SupportActivity")); }
             catch (RuntimeException e) { Toast.makeText(activity, "Destek modülü kullanılamıyor.", Toast.LENGTH_LONG).show(); }
         }), spaced(c));
-        LimitedScroll scroll = new LimitedScroll(c);
-        scroll.addView(panel);
-        AlertDialog dialog = new AlertDialog.Builder(c).setTitle("Gösterge Paneli (Cluster)").setView(scroll)
-                .setNeutralButton("Tam Ekran", null).setPositiveButton("Tamam", null).create();
-        final boolean[] full = {s.panelFullscreen};
-        // Keys go to the focused window, which is this panel while it is open.
-        dialog.setOnKeyListener((d, code, event) -> WheelKeys.handle(activity, event, "panel"));
+
+        // Periodic live status update runnable
         wheelStatus.post(new Runnable() { public void run() {
             if (!dialog.isShowing()) return;
             String assignment = WheelKeys.assignment();
             wheelStatus.setText(WheelKeys.status(activity) + "\n" + WheelKeys.roles(activity) + (assignment.isEmpty() ? "" : "\n" + assignment));
             wheelKeys.setText(WheelKeys.recentKeys());
+            d3StatusText.setText("DiLink 3 durumu: " + DiLink3Projection.status());
+            d3DiagText.setText("DiLink 3 tanılaması: " + DiLink3Projection.diLink3Diagnostics());
             wheelStatus.postDelayed(this, 500);
         }});
-        dialog.setOnDismissListener(d -> WheelKeys.cancelLearning());
-        dialog.setOnShowListener(d -> {
-            // Switching the size keeps the panel open; the choice is remembered for next time.
-            dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener(v -> {
-                full[0] = !full[0];
-                preferences.edit().putBoolean(ClusterSettings.PANEL_FULLSCREEN, full[0]).apply();
-                layout(activity, dialog, scroll, full[0]);
-            });
-            layout(activity, dialog, scroll, full[0]);
-        });
-        dialog.show();
+    }
     }
 }

@@ -6,11 +6,11 @@ This module enables instrument cluster projection and AMap guidance on BYD vehic
 
 ## Status and Verification Truth Labels
 
-- **`VehicleLocalAdb.java` (Adım A)**: Birim testi geçti (Unit tests passed: 70 checks on strict command allowlist, injection attack rejection, AOSP RSA-2048 handshake, public key formatting).
-- **`DiLink3Projection.java` (Adım B)**: Birim testi geçti (Unit tests passed: DiLink3 regex matching, AutoContainer parcel validation, crash quarantine latch, and candidate rejection diagnostics).
-- **`ClusterHost.java` (Adım C)**: Birim testi geçti (DiLink 3 virtual presentation lifecycle, surface callback hooks, dynamic display bounds measurement, and graceful shutdown). Regresyon testleri **YEREL KOŞMADI** (Runs in GitHub Actions CI with full Android SDK).
-- **`BydGuidanceBridge.java` & `AmapAdapter.java` (Adım D)**: Birim testi geçti (`AmapAdapter.choose` fallback logic tested). HUD broadcast suppressed on DiLink 3. AMap Service (`com.example.amapservice`): **DiLink 3 aracında DOĞRULANMADI** (Must be verified in vehicle; falls back safely to default com.byd.amapservice).
-- **`ClusterPanel.java` (Adım E)**: Birim testi geçti (Profile parsing fallback, profile explicit radio group, experimental parked dialog toggle, and action buttons). Tüm arayüz Türkçeleştirildi.
+- **`VehicleLocalAdb.java` (Adım A)**: Birim testi geçti (Unit tests passed: 76 checks on strict command allowlist, injection attack rejection, AOSP RSA-2048 handshake, public key formatting).
+- **`DiLink3Projection.java` (Adım B & Sıkılaştırma)**: Birim testi geçti (`authorizeOnly`, `configure` lifecycle, soft AMap package preflight, AutoContainer parcel validation, crash quarantine latch).
+- **`ClusterHost.java` (Adım C)**: Birim testi geçti (DiLink 3 virtual presentation lifecycle, single truth via `DiLink3Projection.enabled()`, surface callback hooks, dynamic display bounds measurement, and graceful shutdown). Regresyon testleri **YEREL KOŞMADI** (Runs in GitHub Actions CI with full Android SDK).
+- **`BydGuidanceBridge.java` & `AmapAdapter.java` (Adım D)**: Birim testi geçti (`AmapAdapter.choose` fallback logic tested). HUD broadcast suppressed on DiLink 3. AMap Service: **DiLink 3 aracında DOĞRULANMADI** (Soft preflight supports both `com.example.amapservice` and `com.byd.amapservice` without blocking projection).
+- **`ClusterPanel.java` (Adım E & Dinamik Arayüz)**: Birim testi geçti (Reactive in-dialog profile re-rendering, single truth wiring to `DiLink3Projection.configure`, disabled status with reason on non-candidate devices, and live 500ms status refresh). Tüm arayüz Türkçeleştirildi.
 - **Physical Vehicle Projection**: **Araçta DOĞRULANMADI** (Must be validated by owner in a parked vehicle using the test procedure below).
 
 ## Upstream Lineage & Differences from Maps Automotive

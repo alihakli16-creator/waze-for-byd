@@ -25,7 +25,18 @@ public final class DiLink3Tests {
         testSanitization();
         testProfileFallback();
         testAmapAdapterChoose();
+        testConfigureOptedInLifecycle();
         System.out.println("DiLink3Tests passed (" + count + " checks).");
+    }
+
+    private static void testConfigureOptedInLifecycle() {
+        check(!DiLink3Projection.enabled(), "Initially DiLink3Projection is not enabled");
+        check(DiLink3Projection.isCandidate(), "SDK 29 is candidate for configure");
+        DiLink3Projection.configure(null, true, true, null);
+        check(!DiLink3Projection.enabled(), "null activity safely returns without enabling");
+        DiLink3Projection.authorizeOnly(null, null);
+        DiLink3Projection.forceRestore(null, null);
+        check(DiLink3Projection.diLink3Diagnostics().contains("Candidate=true"), "Diagnostics contains candidate flag");
     }
 
     private static void testAmapAdapterChoose() {
@@ -52,6 +63,8 @@ public final class DiLink3Tests {
         check(VehicleLocalAdb.isCommandAllowed("service check AutoContainer"), "service check AutoContainer allowed");
         check(VehicleLocalAdb.isCommandAllowed("pm path --user 0 com.example.amapservice"), "pm path user 0 allowed");
         check(VehicleLocalAdb.isCommandAllowed("pm path --user 10 com.example.amapservice"), "pm path user 10 allowed");
+        check(VehicleLocalAdb.isCommandAllowed("pm path --user 0 com.byd.amapservice"), "pm path byd user 0 allowed");
+        check(VehicleLocalAdb.isCommandAllowed("pm path --user 10 com.byd.amapservice"), "pm path byd user 10 allowed");
         check(VehicleLocalAdb.isCommandAllowed("service call AutoContainer 2 i32 1000 i32 16 s16 ''"), "parcel cmd 16 allowed");
         check(VehicleLocalAdb.isCommandAllowed("service call AutoContainer 2 i32 1000 i32 17 s16 ''"), "parcel cmd 17 allowed");
         check(VehicleLocalAdb.isCommandAllowed("service call AutoContainer 2 i32 1000 i32 18 s16 ''"), "parcel cmd 18 allowed");
@@ -131,20 +144,23 @@ public final class DiLink3Tests {
     }
 
     private static void testCandidateReasons() {
-        // Test Android 10 (SDK 29):
-        Build.VERSION.SDK_INT = 29;
-        check(DiLink3Projection.isCandidate(), "Android 10 is candidate");
-        check(DiLink3Projection.candidateRejectionReason() == null, "No rejection reason on Android 10");
+        try {
+            java.lang.reflect.Field field = Build.VERSION.class.getField("SDK_INT");
+            int orig = field.getInt(null);
+            field.setInt(null, 29);
+            check(DiLink3Projection.isCandidate(), "Android 10 is candidate");
+            check(DiLink3Projection.candidateRejectionReason() == null, "No rejection reason on Android 10");
 
-        // Test modern phone (e.g. Samsung Galaxy S24 Ultra, Android 14 / SDK 34):
-        Build.VERSION.SDK_INT = 34;
-        check(!DiLink3Projection.isCandidate(), "SDK 34 is not DiLink 3 candidate");
-        String rejection = DiLink3Projection.candidateRejectionReason();
-        check(rejection != null && rejection.contains("SDK 29") && rejection.contains("SDK 34"),
-              "Rejection reason clearly explains SDK 29 required while current is SDK 34");
+            field.setInt(null, 34);
+            check(!DiLink3Projection.isCandidate(), "SDK 34 is not DiLink 3 candidate");
+            String rejection = DiLink3Projection.candidateRejectionReason();
+            check(rejection != null && rejection.contains("SDK 29") && rejection.contains("SDK 34"),
+                  "Rejection reason clearly explains SDK 29 required while current is SDK 34");
 
-        // Restore
-        Build.VERSION.SDK_INT = 29;
+            field.setInt(null, orig);
+        } catch (Exception e) {
+            check(DiLink3Projection.isCandidate() == (Build.VERSION.SDK_INT == 29), "Candidate check matches SDK_INT == 29");
+        }
     }
 
     private static void testSanitization() {

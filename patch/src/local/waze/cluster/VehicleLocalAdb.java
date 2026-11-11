@@ -69,7 +69,7 @@ public final class VehicleLocalAdb implements Closeable {
         "getprop ro\\.build\\.display\\.id|" +
         "getprop ro\\.product\\.name|" +
         "service check AutoContainer|" +
-        "pm path --user [0-9]{1,6} com\\.example\\.amapservice|" +
+        "pm path --user [0-9]{1,6} com\\.(?:example|byd)\\.amapservice|" +
         "service call AutoContainer 2 i32 1000 i32 (?:16|17|18|35) s16 ''" +
         ")$"
     );

@@ -32,13 +32,24 @@ sources += [root / 'test/GuidanceTests.java', root / 'test/GuidanceAndroidTests.
 def run(*command):
     subprocess.run(list(map(str, command)), check=True)
 
+stubs_dir = root / 'test/stubs'
+stubs_sources = sorted(stubs_dir.rglob('*.java')) if stubs_dir.exists() else []
+stubs_out = out / 'stubs'
+if stubs_sources:
+    stubs_out.mkdir(parents=True, exist_ok=True)
+    run('javac', '-source', '8', '-target', '8', '-Xlint:-options', '-d', stubs_out, *stubs_sources)
+
+sep = os.pathsep
+compile_cp = f'{stubs_out}{sep}{android}{sep}{root / "car-api.jar"}' if stubs_sources else f'{android}{sep}{root / "car-api.jar"}'
 run('javac', '-source', '8', '-target', '8', '-Xlint:-options', '-cp',
-    f'{android}:{root / "car-api.jar"}', '-d', out / 'classes', *sources)
-run('java', '-cp', f'{out / "classes"}:{root / "car-api.jar"}:{android}', 'local.waze.cluster.GuidanceTests')
-run('java', '-cp', f'{out / "classes"}:{root / "car-api.jar"}:{android}', 'local.waze.cluster.StandaloneHudTests')
-run('java', '-cp', f'{out / "classes"}:{root / "car-api.jar"}:{android}', 'local.waze.cluster.ClusterLayoutTests')
-run('java', '-cp', f'{out / "classes"}:{root / "car-api.jar"}:{android}', 'local.waze.cluster.WheelKeyTests')
-run('java', '-cp', f'{out / "classes"}:{root / "car-api.jar"}:{android}', 'local.waze.cluster.DiLink3Tests')
+    compile_cp, '-d', out / 'classes', *sources)
+
+test_cp = f'{stubs_out}{sep}{out / "classes"}{sep}{root / "car-api.jar"}{sep}{android}' if stubs_sources else f'{out / "classes"}{sep}{root / "car-api.jar"}{sep}{android}'
+run('java', '-cp', test_cp, 'local.waze.cluster.GuidanceTests')
+run('java', '-cp', test_cp, 'local.waze.cluster.StandaloneHudTests')
+run('java', '-cp', test_cp, 'local.waze.cluster.ClusterLayoutTests')
+run('java', '-cp', test_cp, 'local.waze.cluster.WheelKeyTests')
+run('java', '-cp', test_cp, 'local.waze.cluster.DiLink3Tests')
 if args.android_serial:
     (out / 'dex').mkdir()
     run(bt / 'd8', '--min-api', '29', '--lib', android, '--output', out / 'dex',

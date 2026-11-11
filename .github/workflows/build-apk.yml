@@ -10,7 +10,7 @@ on:
       create_release:
         description: 'Create a GitHub Release with the built APK (true/false)'
         required: false
-        default: 'true'
+        default: 'false'
       release_tag:
         description: 'Tag name for the release'
         required: false
@@ -110,20 +110,23 @@ jobs:
           fi
 
       - name: Prepare Signing Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ ! -f "patch/test.keystore" ]; then
-            echo "Generating test keystore..."
-            keytool -genkeypair -v -keystore patch/test.keystore \
-              -alias cluster-test -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass password123 -keypass password123 \
-              -dname "CN=WazeForBYD, OU=BYD, O=Cluster, L=Istanbul, ST=TR, C=TR"
-          else
-            echo "Using existing patch/test.keystore"
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Missing signing secrets! Please set KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD in GitHub Repository Secrets."
+            echo "Never generate random keys or hardcode passwords in CI."
+            exit 1
           fi
-          echo "WAZE_KEYSTORE=$GITHUB_WORKSPACE/patch/test.keystore" >> $GITHUB_ENV
-          echo "WAZE_KEY_ALIAS=cluster-test" >> $GITHUB_ENV
-          echo "WAZE_KEYSTORE_PASSWORD=password123" >> $GITHUB_ENV
-          echo "WAZE_KEY_PASSWORD=password123" >> $GITHUB_ENV
+          mkdir -p ~/.android
+          echo "$KEYSTORE_BASE64" | base64 -d > ~/.android/signing.keystore
+          echo "WAZE_KEYSTORE=$HOME/.android/signing.keystore" >> $GITHUB_ENV
+          echo "WAZE_KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
+          echo "WAZE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
+          echo "WAZE_KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
           echo "WAZE_INPUT_APK=$GITHUB_WORKSPACE/waze-5-26-0-0.apk" >> $GITHUB_ENV
           echo "WAZE_ALLOW_OVERWRITE=1" >> $GITHUB_ENV
 
@@ -135,13 +138,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Waze-for-BYD-5.26.0.0-test.10
+          retention-days: 7
           path: |
             patch/Waze-for-BYD-5.26.0.0-test.10.apk
             patch/Waze-for-BYD-5.26.0.0-test.10.apk.sha256
-            patch/test.keystore
 
       - name: Create GitHub Release
-        if: (github.event.inputs.create_release == 'true' || startsWith(github.ref, 'refs/tags/')) && !cancelled()
+        if: github.event.inputs.create_release == 'true' && !cancelled()
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.release_tag || 'v5.26.0.0-byd.test.10' }}
@@ -149,8 +152,7 @@ jobs:
           files: |
             patch/Waze-for-BYD-5.26.0.0-test.10.apk
             patch/Waze-for-BYD-5.26.0.0-test.10.apk.sha256
-            patch/test.keystore
-          draft: false
+          draft: true
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
