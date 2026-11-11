@@ -1,0 +1,156 @@
+name: Build Waze for BYD APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      waze_apk_url:
+        description: 'Direct download URL for Waze 5.26.0.0 APK or APKM (Optional)'
+        required: false
+        default: ''
+      create_release:
+        description: 'Create a GitHub Release with the built APK (true/false)'
+        required: false
+        default: 'true'
+      release_tag:
+        description: 'Tag name for the release'
+        required: false
+        default: 'v5.26.0.0-byd.test.10'
+  push:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - 'REHBER_*.md'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Android SDK Build-Tools and Platform
+        run: |
+          export ANDROID_SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;36.0.0" || true
+          
+          # If build-tools/36.0.0 does not exist, symlink the highest available build-tools
+          if [ ! -d "$ANDROID_SDK_ROOT/build-tools/36.0.0" ]; then
+            HIGHEST_BT=$(ls -d "$ANDROID_SDK_ROOT/build-tools/"* | sort -V | tail -n 1)
+            echo "Symlinking $HIGHEST_BT to $ANDROID_SDK_ROOT/build-tools/36.0.0"
+            ln -s "$HIGHEST_BT" "$ANDROID_SDK_ROOT/build-tools/36.0.0"
+          fi
+
+      - name: Download Build Tools (Apktool & APKEditor)
+        run: |
+          mkdir -p tools
+          curl -fL -o tools/apktool_2.11.1.jar https://github.com/iBotPeaches/Apktool/releases/download/v2.11.1/apktool_2.11.1.jar
+          curl -fL -o tools/APKEditor-1.4.9.jar https://github.com/REAndroid/APKEditor/releases/download/V1.4.9/APKEditor-1.4.9.jar
+          echo "APKTOOL_JAR=$GITHUB_WORKSPACE/tools/apktool_2.11.1.jar" >> $GITHUB_ENV
+
+      - name: Obtain Base Waze 5.26.0.0 APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TARGET_SHA="66a367a5a55b9d808fcb6e613f96adc6148709fa563666810a90b9daf849bb49"
+          
+          if [ -f "waze-5-26-0-0.apk" ]; then
+            echo "Found waze-5-26-0-0.apk in workspace."
+          elif [ -n "${{ github.event.inputs.waze_apk_url }}" ]; then
+            echo "Downloading from URL: ${{ github.event.inputs.waze_apk_url }}"
+            curl -L -o downloaded_input "${{ github.event.inputs.waze_apk_url }}"
+            if unzip -l downloaded_input | grep -q "base.apk"; then
+              echo "Downloaded file is an APKM bundle. Merging with APKEditor..."
+              java -jar tools/APKEditor-1.4.9.jar m -i downloaded_input -o waze-5-26-0-0.apk
+            else
+              mv downloaded_input waze-5-26-0-0.apk
+            fi
+          elif ls *.apkm 1> /dev/null 2>&1; then
+            APKM_FILE=$(ls *.apkm | head -n 1)
+            echo "Found APKM bundle: $APKM_FILE. Merging with APKEditor..."
+            java -jar tools/APKEditor-1.4.9.jar m -i "$APKM_FILE" -o waze-5-26-0-0.apk
+          elif gh release download base -p "waze-5-26-0-0.apk" 2>/dev/null || gh release download -p "waze-5-26-0-0.apk" 2>/dev/null; then
+            echo "Downloaded waze-5-26-0-0.apk from GitHub Release."
+          elif gh release download base -p "*.apkm" 2>/dev/null || gh release download -p "*.apkm" 2>/dev/null; then
+            APKM_FILE=$(ls *.apkm | head -n 1)
+            echo "Downloaded APKM from GitHub Release. Merging..."
+            java -jar tools/APKEditor-1.4.9.jar m -i "$APKM_FILE" -o waze-5-26-0-0.apk
+          else
+            echo "::error::Base Waze 5.26.0.0 APK not found!"
+            echo "Please provide the APK or APKM through one of the following methods:"
+            echo "1. Run this workflow with a direct download link via 'waze_apk_url'."
+            echo "2. Upload the APKM or APK to a GitHub Release tagged 'base'."
+            echo "3. Add waze-5-26-0-0.apk or the .apkm file directly to the repository."
+            exit 1
+          fi
+
+          CURRENT_SHA=$(sha256sum waze-5-26-0-0.apk | awk '{print $1}')
+          echo "Merged Waze APK SHA-256: $CURRENT_SHA"
+          if [ "$CURRENT_SHA" != "$TARGET_SHA" ]; then
+            echo "::warning::Calculated SHA ($CURRENT_SHA) differs from expected ($TARGET_SHA). Pinned build check may fail."
+          fi
+
+      - name: Prepare Signing Keystore
+        run: |
+          if [ ! -f "patch/test.keystore" ]; then
+            echo "Generating test keystore..."
+            keytool -genkeypair -v -keystore patch/test.keystore \
+              -alias cluster-test -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass password123 -keypass password123 \
+              -dname "CN=WazeForBYD, OU=BYD, O=Cluster, L=Istanbul, ST=TR, C=TR"
+          else
+            echo "Using existing patch/test.keystore"
+          fi
+          echo "WAZE_KEYSTORE=$GITHUB_WORKSPACE/patch/test.keystore" >> $GITHUB_ENV
+          echo "WAZE_KEY_ALIAS=cluster-test" >> $GITHUB_ENV
+          echo "WAZE_KEYSTORE_PASSWORD=password123" >> $GITHUB_ENV
+          echo "WAZE_KEY_PASSWORD=password123" >> $GITHUB_ENV
+          echo "WAZE_INPUT_APK=$GITHUB_WORKSPACE/waze-5-26-0-0.apk" >> $GITHUB_ENV
+          echo "WAZE_ALLOW_OVERWRITE=1" >> $GITHUB_ENV
+
+      - name: Build Waze for BYD APK
+        run: |
+          python3 patch/build.py
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Waze-for-BYD-5.26.0.0-test.10
+          path: |
+            patch/Waze-for-BYD-5.26.0.0-test.10.apk
+            patch/Waze-for-BYD-5.26.0.0-test.10.apk.sha256
+            patch/test.keystore
+
+      - name: Create GitHub Release
+        if: (github.event.inputs.create_release == 'true' || startsWith(github.ref, 'refs/tags/')) && !cancelled()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag || 'v5.26.0.0-byd.test.10' }}
+          name: Waze for BYD 5.26.0.0 — test.10
+          files: |
+            patch/Waze-for-BYD-5.26.0.0-test.10.apk
+            patch/Waze-for-BYD-5.26.0.0-test.10.apk.sha256
+            patch/test.keystore
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

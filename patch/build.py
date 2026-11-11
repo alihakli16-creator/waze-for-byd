@@ -6,9 +6,11 @@ from manifest_label import rename_application, set_version_code
 from manifest_support import add_support_components
 from resource_table import add_xml_resource
 root = pathlib.Path(__file__).resolve().parent
-sdk = pathlib.Path(os.environ.get('ANDROID_SDK_ROOT', pathlib.Path.home() / 'Library/Android/sdk'))
-bt = sdk / 'build-tools/36.0.0'
-android = sdk / 'platforms/android-35/android.jar'
+sdk = pathlib.Path(os.environ.get('ANDROID_SDK_ROOT', os.environ.get('ANDROID_HOME', pathlib.Path.home() / 'Library/Android/sdk')))
+bt_ver = os.environ.get('ANDROID_BUILD_TOOLS_VERSION', '36.0.0')
+bt = sdk / f'build-tools/{bt_ver}'
+platform_ver = os.environ.get('ANDROID_PLATFORM_VERSION', 'android-35')
+android = sdk / f'platforms/{platform_ver}/android.jar'
 apktool = pathlib.Path(os.environ.get('APKTOOL_JAR', '/opt/homebrew/Cellar/apktool/2.11.1/libexec/apktool_2.11.1.jar'))
 # Waze 5.26.0.0 (versionCode 1030742) from the APKMirror bundle
 # com.waze_5.26.0.0-1030742_1arch_2dpi_24lang_115dd2209a60866ddb880cd03246f5ac_apkmirror.com.apkm
@@ -72,12 +74,12 @@ assert lanes.count(lanes_marker) == 1, 'Pinned lanes hook location not found'
 lanes_overlay = root / 'smali-overrides/classes6/com/waze/navigate/NavigationInfoNativeManager.smali'
 lanes_overlay.parent.mkdir(parents=True, exist_ok=True)
 lanes_overlay.write_text(lanes.replace(lanes_marker, lanes_marker + '\n    invoke-static {p1}, Llocal/waze/cluster/ClusterHost;->onLanes(Ljava/lang/Object;)V\n'))
-run('javac', '-cp', apktool, 'Assemble.java')
-run('java', '-Xmx2g', '-cp', f'.:{apktool}', 'Assemble', f'{decoded}/smali_classes6', 'classes6.dex', 'smali-overrides/classes6')
-run('java', '-Xmx2g', '-cp', f'.:{apktool}', 'Assemble', f'{decoded}/smali_classes5', 'classes5.dex', 'smali-overrides/classes5')
+run('javac', '-cp', str(apktool), 'Assemble.java')
+run('java', '-Xmx2g', '-cp', f'.{os.pathsep}{apktool}', 'Assemble', f'{decoded}/smali_classes6', 'classes6.dex', 'smali-overrides/classes6')
+run('java', '-Xmx2g', '-cp', f'.{os.pathsep}{apktool}', 'Assemble', f'{decoded}/smali_classes5', 'classes5.dex', 'smali-overrides/classes5')
 (root / 'classes').mkdir(exist_ok=True)
 (root / 'helper-dex').mkdir(exist_ok=True)
-run('javac', '-source', '8', '-target', '8', '-Xlint:-options', '-cp', f'{android}:car-api.jar', '-d', 'classes', *sorted((root / 'src').rglob('*.java')))
+run('javac', '-source', '8', '-target', '8', '-Xlint:-options', '-cp', f'{android}{os.pathsep}car-api.jar', '-d', 'classes', *sorted((root / 'src').rglob('*.java')))
 # The accessibility service's metadata: compile it with aapt2 and add only its entry to Waze's resource table.
 wheel_key, wheel_path = 'local_wheel_key_service', 'res/local_wheel_key_service.xml'
 (root / 'wheel-res').mkdir()
