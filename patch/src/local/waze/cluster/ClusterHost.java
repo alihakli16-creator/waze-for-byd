@@ -140,18 +140,18 @@ public final class ClusterHost implements DisplayManager.DisplayListener {
             Location where = mode == ClusterTheme.MODE_AUTO ? themeLocation() : null;
             boolean dark = ClusterTheme.night(mode, System.currentTimeMillis(), minute, start, end,
                     where == null ? null : where.getLatitude(), where == null ? null : where.getLongitude());
-            reason = "head unit " + (mode == ClusterTheme.MODE_NO ? "light" : mode == ClusterTheme.MODE_YES ? "dark"
-                    : mode == ClusterTheme.MODE_CUSTOM ? "scheduled" : "automatic");
+            reason = "multimedya " + (mode == ClusterTheme.MODE_NO ? "açık" : mode == ClusterTheme.MODE_YES ? "koyu"
+                    : mode == ClusterTheme.MODE_CUSTOM ? "zamanlanmış" : "otomatik");
             night = dark ? Configuration.UI_MODE_NIGHT_YES : Configuration.UI_MODE_NIGHT_NO;
-        } catch (Exception e) { return keepTheme("head unit theme unavailable"); }
+        } catch (Exception e) { return keepTheme("multimedya teması kullanılamıyor"); }
         String state = "night=" + (night == Configuration.UI_MODE_NIGHT_YES) + " " + reason;
         if (!state.equals(themeState)) { themeState = state; Log.i(TAG, "car theme " + state); }
-        ClusterStatus.theme = "Car theme for Waze: " + (night == Configuration.UI_MODE_NIGHT_NO ? "light" : "dark") + " (" + reason + ").";
+        ClusterStatus.theme = "Waze araç teması: " + (night == Configuration.UI_MODE_NIGHT_NO ? "açık" : "koyu") + " (" + reason + ").";
         return night;
     }
     private int keepTheme(String reason) {
         int night = appliedNight > 0 ? appliedNight : Configuration.UI_MODE_NIGHT_YES;
-        ClusterStatus.theme = "Car theme for Waze: " + (night == Configuration.UI_MODE_NIGHT_NO ? "light" : "dark") + " (" + reason + ").";
+        ClusterStatus.theme = "Waze araç teması: " + (night == Configuration.UI_MODE_NIGHT_NO ? "açık" : "koyu") + " (" + reason + ").";
         return night;
     }
     /** Last known position for sunrise/sunset only; kept in memory, never logged or uploaded. */
@@ -177,8 +177,8 @@ public final class ClusterHost implements DisplayManager.DisplayListener {
     /** Reads Waze's shared map night flag (centre screen and cluster), for the local status only. */
     private void reportCarTheme() {
         Boolean value = ClusterTheme.wazeMapNight();
-        String seen = value == null ? "unknown or not set yet" : value ? "dark" : "light";
-        ClusterStatus.wazeMainTheme = "Waze map colours: " + seen + ".";
+        String seen = value == null ? "bilinmiyor veya henüz ayarlanmadı" : value ? "koyu" : "açık";
+        ClusterStatus.wazeMainTheme = "Waze harita renkleri: " + seen + ".";
         if (!seen.equals(carThemeSeen)) { carThemeSeen = seen; Log.i(TAG, "Waze map colours " + seen); }
     }
     private void applyTheme(String source) {
@@ -217,9 +217,9 @@ public final class ClusterHost implements DisplayManager.DisplayListener {
      */
     public static String zoom(boolean in) {
         ClusterHost host = instance;
-        if (host == null) return "Cluster host is not running.";
+        if (host == null) return "Gösterge hostu çalışmıyor.";
         final ISurfaceCallback receiver = host.callback;
-        if (receiver == null || host.delivered == null || host.view == null) return "The cluster map is not shown yet.";
+        if (receiver == null || host.delivered == null || host.view == null) return "Gösterge haritası henüz gösterilmedi.";
         Rect area = host.area(host.view.getWidth(), host.view.getHeight(), host.plan);
         final float x = area.exactCenterX(), y = area.exactCenterY(), step = in ? 1.12f : 1 / 1.12f;
         for (int i = 0; i <= ZOOM_STEPS; i++) {
@@ -347,7 +347,7 @@ public final class ClusterHost implements DisplayManager.DisplayListener {
         if (!ClusterSettings.state(app).mapEnabled) {
             if (presentation != null) clearMap();
             if (layout51()) flush51(displays.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION), null);
-            ClusterStatus.map = "off in Instrument cluster settings";
+            ClusterStatus.map = "Gösterge paneli ayarlarında kapalı";
             return;
         }
         if (layout51()) { reconcile51(); return; }

@@ -33,13 +33,13 @@ public final class BydGuidanceBridge {
         standalone = rejection == null || untested && ClusterSettings.state(context).hudUntested;
         ClusterStatus.untestedHudAvailable = untested;
         ClusterStatus.standaloneActive = standalone;
-        ClusterStatus.hud = rejection == null ? "HUD transport: standalone receiver verified."
-                : standalone ? "HUD transport: standalone receiver (experimental: this firmware build is untested)."
-                : untested ? "HUD transport: AMap. A standalone HUD receiver passed all checks, but this firmware build is untested. You can try it below."
-                : "HUD transport: AMap. Standalone unavailable (" + rejection + ").";
+        ClusterStatus.hud = rejection == null ? "HUD aktarımı: Bağımsız alıcı doğrulandı."
+                : standalone ? "HUD aktarımı: Bağımsız alıcı (Deneysel: Bu yazılım sürümü test edilmedi)."
+                : untested ? "HUD aktarımı: AMap. Bağımsız HUD alıcısı tüm kontrolleri geçti ancak bu yazılım test edilmedi. Aşağıdan deneyebilirsiniz."
+                : "HUD aktarımı: AMap, Bağımsız mod kullanılamıyor (" + rejection + ").";
         // The AMap adapter is only used when the standalone HUD is not; DiLink 3 names it com.example.amapservice.
         final String adapter = standalone ? AmapAdapter.BYD : AmapAdapter.packageName(context);
-        if (!standalone) ClusterStatus.hud = ClusterStatus.hud.replace("HUD transport: AMap.", "HUD transport: AMap via " + adapter + ".");
+        if (!standalone) ClusterStatus.hud = ClusterStatus.hud.replace("HUD aktarımı: AMap", "HUD aktarımı: " + adapter + " üzerinden AMap");
         SharedPreferences prefs = context.getSharedPreferences("waze_for_byd_guidance", Context.MODE_PRIVATE);
         if (!standalone && untested && prefs.getBoolean("standalone_hud_pending_clear", false)) {
             // The owner turned the experimental output off: clear what a killed process left on the HUD.

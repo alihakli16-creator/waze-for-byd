@@ -187,7 +187,7 @@ public final class WheelKeyPolicy {
             if (count < SIZE) count++;
         }
         public synchronized String describe(java.util.TimeZone zone) {
-            if (count == 0) return "No keys received yet. Press a steering-wheel button.";
+            if (count == 0) return "Henüz tuş algılanmadı. Direksiyondan bir tuşa basın.";
             java.text.SimpleDateFormat time = new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US);
             time.setTimeZone(zone);
             StringBuilder out = new StringBuilder();
@@ -195,7 +195,7 @@ public final class WheelKeyPolicy {
                 int k = (next - 1 - i + SIZE) % SIZE;
                 if (i > 0) out.append('\n');
                 out.append(time.format(new java.util.Date(at[k]))).append("  key ").append(code[k]).append('/').append(scan[k]).append("  ")
-                        .append(device[k]).append("  ").append(source[k]).append(kept[k] ? ", used" : ", passed");
+                        .append(device[k]).append("  ").append(source[k]).append(kept[k] ? ", kullanıldı" : ", iletildi");
             }
             return out.toString();
         }

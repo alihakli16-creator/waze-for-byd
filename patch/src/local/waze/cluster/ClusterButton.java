@@ -32,8 +32,8 @@ final class ClusterButton extends View {
         stroke.setStyle(Paint.Style.STROKE);
         stroke.setStrokeCap(Paint.Cap.ROUND);
         stroke.setStrokeWidth(2.5f * density);
-        setContentDescription("Instrument cluster");
-        if (Build.VERSION.SDK_INT >= 26) setTooltipText("Instrument cluster");
+        setContentDescription("Gösterge Paneli (Cluster)");
+        if (Build.VERSION.SDK_INT >= 26) setTooltipText("Gösterge Paneli (Cluster)");
         setClickable(true);
         setFocusable(true);
         update();

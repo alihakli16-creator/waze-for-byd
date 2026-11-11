@@ -61,7 +61,7 @@ final class WheelKeys {
         if (capture.binding != null) {
             WheelKeyPolicy.Bindings next = WheelKeyPolicy.assign(bindings(c), capture.role, capture.binding);
             replace(c, next);
-            assignment = roleName(capture.role) + " saved: " + capture.binding + ".";
+            assignment = roleName(capture.role) + " kaydedildi: " + capture.binding + ".";
         }
         boolean consumed = capture.consume || zoom(c, event);
         recent.add(System.currentTimeMillis(), event, source, consumed);
@@ -75,7 +75,7 @@ final class WheelKeys {
         WheelKeyPolicy.Result result = policy.handle(event, ClusterSettings.state(c).wheelZoom, ClusterHost.zoomReady(), audioSafe(c));
         final Context app = c.getApplicationContext();
         if (result.mode != before && result.consume)
-            main.post(() -> Toast.makeText(app, result.mode ? "Cluster zoom on" : "Volume controls restored", Toast.LENGTH_SHORT).show());
+            main.post(() -> Toast.makeText(app, result.mode ? "Gösterge yakınlaştırma açık" : "Ses kontrolleri geri yüklendi", Toast.LENGTH_SHORT).show());
         if (result.delta != 0) main.post(() -> ClusterHost.zoom(result.delta > 0));
         return result.consume;
     }
@@ -85,17 +85,17 @@ final class WheelKeys {
         return audio != null && audio.getMode() == AudioManager.MODE_NORMAL && !audio.isBluetoothScoOn();
     }
     static String status(Context c) {
-        if (!ClusterSettings.state(c).wheelZoom) return "Off. The custom and volume buttons keep their normal actions.";
-        if (connected) return "On. The key service is connected.";
-        return listed(c) ? "On. The key service is enabled in Android but not connected."
-                : "On. The key service is not enabled in Android, so keys arrive only while a Waze window is on the centre screen, if at all.";
+        if (!ClusterSettings.state(c).wheelZoom) return "Kapalı. Özel tuş ve ses tuşları normal işlevlerini korur.";
+        if (connected) return "Açık. Tuş servisi bağlandı.";
+        return listed(c) ? "Açık. Tuş servisi Android'de etkinleştirildi ancak bağlı değil."
+                : "Açık. Tuş servisi Android'de etkin değil, tuşlar yalnızca Waze orta ekranda açıkken algılanabilir.";
     }
     static synchronized String roles(Context c) {
         WheelKeyPolicy.Bindings b = bindings(c);
-        return "Custom button: " + b.mode + "\nZoom in: " + b.in + "\nZoom out: " + b.out;
+        return "Özel tuş: " + b.mode + "\nYakınlaştır: " + b.in + "\nUzaklaştır: " + b.out;
     }
     static String recentKeys() { return recent.describe(java.util.TimeZone.getDefault()); }
-    static String roleName(int role) { return role == 1 ? "Custom button" : role == 2 ? "Zoom in" : "Zoom out"; }
+    static String roleName(int role) { return role == 1 ? "Özel tuş" : role == 2 ? "Yakınlaştır" : "Uzaklaştır"; }
     static synchronized void learn(int role) {
         assignment = "";
         learning.start(role, SystemClock.uptimeMillis());
@@ -104,11 +104,11 @@ final class WheelKeys {
     static synchronized String assignment() {
         long now = SystemClock.uptimeMillis();
         int role = learning.role(now);
-        return role != 0 ? "Press the steering-wheel button for " + roleName(role) + " now (" + (learning.remaining(now) + 999) / 1000 + " s)." : assignment;
+        return role != 0 ? "Şimdi " + roleName(role) + " için direksiyon tuşuna basın (" + (learning.remaining(now) + 999) / 1000 + " sn)." : assignment;
     }
     static synchronized void restoreTang(Context c) {
         learning.cancel();
         replace(c, WheelKeyPolicy.Bindings.tang());
-        assignment = "BYD Tang buttons restored.";
+        assignment = "BYD varsayılan tuşları yüklendi.";
     }
 }

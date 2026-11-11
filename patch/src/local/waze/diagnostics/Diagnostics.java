@@ -85,17 +85,17 @@ public final class Diagnostics {
                 if(!needed||showingNotice||foreground!=a||a.isFinishing()||a.isDestroyed())return;
                 showingNotice=true;
                 LinearLayout layout=new LinearLayout(a);layout.setOrientation(LinearLayout.VERTICAL);layout.setPadding(24,16,24,16);
-                TextView text=new TextView(a);text.setText("Help improve Waze for BYD by sending technical reports when an integration error occurs. Reports go to diagnostics.localcharge.app and a limited summary may appear in public GitHub Issues for romanchukg-cloud/waze-for-byd. Reports exclude routes, coordinates, account information and road names. You can turn this off in Support. Technical metadata can identify an unusual configuration.\n\nAutomatic sending starts after Continue with this choice and verification of server support. Ordinary successful sessions are not sent. Manual reports always require Preview and Send.");
-                layout.addView(text);CheckBox automatic=new CheckBox(a);automatic.setText("Automatically send diagnostics");automatic.setChecked(selected);layout.addView(automatic);
-                AlertDialog dialog=new AlertDialog.Builder(a).setTitle("Diagnostics choice").setView(layout)
-                    .setPositiveButton("Continue",(d,w) -> {
+                TextView text=new TextView(a);text.setText("Bir entegrasyon hatası oluştuğunda teknik raporlar göndererek Waze for BYD'nin geliştirilmesine yardımcı olun. Raporlar rotaları, koordinatları, hesap bilgilerini veya yol adlarını İÇERMEZ. Bu özelliği istediğiniz zaman Destek bölümünden kapatabilirsiniz.\n\nOtomatik gönderim, bu seçenek işaretlenip Devam edildikten sonra başlar. Başarılı oturumlar asla gönderilmez.");
+                layout.addView(text);CheckBox automatic=new CheckBox(a);automatic.setText("Tanılamaları otomatik gönder");automatic.setChecked(selected);layout.addView(automatic);
+                AlertDialog dialog=new AlertDialog.Builder(a).setTitle("Tanılama Tercihi").setView(layout)
+                    .setPositiveButton("Devam",(d,w) -> {
                         boolean selectedChoice=automatic.isChecked();
                         choiceChanged(selectedChoice);
                         execute(() -> {store.saveChoice(selectedChoice,true);schedule();},() -> {
                             if(a instanceof SupportActivity&&!a.isFinishing()&&!a.isDestroyed())((SupportActivity)a).showAutomaticChoice(selectedChoice);
-                        },() -> Toast.makeText(a,"Could not save your diagnostics choice. Open Support to try again.",Toast.LENGTH_LONG).show());
+                        },() -> Toast.makeText(a,"Tanılama tercihiniz kaydedilemedi. Tekrar denemek için Destek'i açın.",Toast.LENGTH_LONG).show());
                     })
-                    .setNegativeButton("Later",null).create();
+                    .setNegativeButton("Daha Sonra",null).create();
                 noticeOwner=a;noticeDialog=dialog;
                 dialog.setOnDismissListener(d -> {if(noticeDialog==dialog){showingNotice=false;noticeOwner=null;noticeDialog=null;}});dialog.show();
             });

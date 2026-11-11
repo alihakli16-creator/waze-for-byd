@@ -6,8 +6,8 @@ import android.os.Build;
 
 /** Local Support status for the cluster map and HUD; never part of diagnostics reports. */
 public final class ClusterStatus {
-    static volatile String map = "cluster host is not running", surface = "none", displays = "", cluster,
-            theme = "Cluster map: not shown yet.", hud = "HUD transport: checking receiver.", wazeCarTheme = "", wazeMainTheme = "";
+    static volatile String map = "Gösterge hostu çalışmıyor", surface = "yok", displays = "", cluster,
+            theme = "Gösterge haritası: henüz gösterilmedi.", hud = "HUD aktarımı: Alıcı kontrol ediliyor.", wazeCarTheme = "", wazeMainTheme = "";
     static volatile boolean untestedHudAvailable, standaloneActive;
     public static String theme() {
         return theme + (wazeCarTheme.isEmpty() ? "" : " " + wazeCarTheme) + (wazeMainTheme.isEmpty() ? "" : " " + wazeMainTheme);
@@ -21,16 +21,16 @@ public final class ClusterStatus {
         ClusterSettings.State settings = ClusterSettings.state(context);
         boolean verified = DiLink51Layout.verified(Build.FINGERPRINT);
         boolean active = DiLink51Layout.active(settings.profile, Build.FINGERPRINT);
-        StringBuilder s = new StringBuilder("Firmware: ").append(Build.FINGERPRINT)
-                .append("\nCluster layout: ").append(active ? (verified ? "DiLink 5.1, verified firmware" : "DiLink 5.1, chosen for unverified firmware")
-                        : "DiLink 5" + (verified ? ", chosen manually" : ""));
-        if (active) s.append("\nUsage Access: ").append(ClusterActivityMonitor.hasAccess(context) ? "granted" : "not granted");
+        StringBuilder s = new StringBuilder("Yazılım: ").append(Build.FINGERPRINT)
+                .append("\nGösterge düzeni: ").append(active ? (verified ? "DiLink 5.1, doğrulanmış yazılım" : "DiLink 5.1, doğrulanmamış yazılım için seçildi")
+                        : "DiLink 5" + (verified ? ", manuel seçildi" : ""));
+        if (active) s.append("\nKullanım Erişimi: ").append(ClusterActivityMonitor.hasAccess(context) ? "verildi" : "verilmedi");
         String stock = cluster;
-        if (stock != null) s.append("\nStock cluster: ").append(stock);
-        s.append("\nMap on cluster: ").append(settings.mapEnabled ? "on" : "off").append(", guidance: ").append(settings.vehicleGuidance ? "on" : "off")
+        if (stock != null) s.append("\nOrijinal gösterge: ").append(stock);
+        s.append("\nGöstergede harita: ").append(settings.mapEnabled ? "açık" : "kapalı").append(", yönlendirme: ").append(settings.vehicleGuidance ? "açık" : "kapalı")
                 .append("\n").append(theme())
-                .append("\nMap: ").append(map).append("\nWaze surface: ").append(surface)
-                .append("\nDisplays: ").append(displays.isEmpty() ? "unknown" : displays);
+                .append("\nHarita: ").append(map).append("\nWaze katmanı: ").append(surface)
+                .append("\nEkranlar: ").append(displays.isEmpty() ? "bilinmiyor" : displays);
         return s.append("\n").append(hud).append("\n").append(StandaloneHudGate.describe(context)).toString();
     }
 }

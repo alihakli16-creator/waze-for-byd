@@ -208,14 +208,15 @@ public final class ClusterPanel {
         panel.addView(control);
     }
     private static void options(LinearLayout panel, Context c, String title, String[] labels, int selected, Selection selection) {
-        panel.addView(label(c, title, 17));
+        panel.addView(label(c, title, 16));
         RadioGroup group = new RadioGroup(c);
         group.setOrientation(LinearLayout.HORIZONTAL);
         for (int i = 0; i < labels.length; i++) {
             RadioButton b = new RadioButton(c);
             b.setId(View.generateViewId());
             b.setText(labels[i]);
-            b.setTextSize(16);
+            b.setTextSize(12.5f);
+            b.setPadding(dp(c, 2), dp(c, 4), dp(c, 2), dp(c, 4));
             b.setTag(i);
             group.addView(b, new RadioGroup.LayoutParams(0, -2, 1f));
             if (i == selected) b.setChecked(true);
@@ -268,7 +269,7 @@ public final class ClusterPanel {
         }
         scroll.requestLayout();
         Button mode = dialog.getButton(DialogInterface.BUTTON_NEUTRAL);
-        if (mode != null) mode.setText(full ? "Window" : "Full screen");
+        if (mode != null) mode.setText(full ? "Pencere" : "Tam Ekran");
     }
     private static void slider(LinearLayout panel, Context c, String title, String key, int min, int max, int value) {
         slider(panel, c, title, key, min, max, value, "%");
@@ -295,7 +296,7 @@ public final class ClusterPanel {
     static void restart(Activity a) {
         Intent launch = a.getPackageManager().getLaunchIntentForPackage(a.getPackageName());
         if (launch == null || launch.getComponent() == null) {
-            Toast.makeText(a, "Close Waze completely and open it again.", Toast.LENGTH_LONG).show();
+            Toast.makeText(a, "Waze'i tamamen kapatıp tekrar açın.", Toast.LENGTH_LONG).show();
             return;
         }
         android.util.Log.i("WazeClusterTest", "restarting Waze from cluster settings");
@@ -307,74 +308,73 @@ public final class ClusterPanel {
         LinearLayout panel = new LinearLayout(c);
         panel.setOrientation(LinearLayout.VERTICAL);
         // Generous padding keeps switches and buttons away from the panel edges on the car screen.
-        panel.setPadding(dp(c, 32), dp(c, 16), dp(c, 32), dp(c, 16));
+        panel.setPadding(dp(c, 20), dp(c, 16), dp(c, 20), dp(c, 16));
         ClusterSettings.State s = ClusterSettings.state(activity);
-        toggle(panel, c, "Show map on instrument cluster", ClusterSettings.MAP_ENABLED, s.mapEnabled);
-        toggle(panel, c, "Send turn guidance to cluster and HUD", ClusterSettings.VEHICLE_GUIDANCE, s.vehicleGuidance);
-        panel.addView(label(c, ClusterStatus.hud() + " Use only one HUD navigation app at a time.", 14));
+        toggle(panel, c, "Haritayı gösterge panelinde göster", ClusterSettings.MAP_ENABLED, s.mapEnabled);
+        toggle(panel, c, "Dönüş yönlendirmelerini gösterge ve HUD'a gönder", ClusterSettings.VEHICLE_GUIDANCE, s.vehicleGuidance);
+        panel.addView(label(c, ClusterStatus.hud() + " Aynı anda yalnızca bir HUD navigasyon uygulaması kullanın.", 14));
         if (ClusterStatus.untestedHudAvailable()) {
             Switch hud = new Switch(c);
-            hud.setText("Try standalone HUD on this firmware (experimental)");
+            hud.setText("Bu yazılımda bağımsız HUD'u dene (deneysel)");
             hud.setTextSize(18);
             hud.setMinHeight(dp(c, 56));
             hud.setChecked(s.hudUntested);
-            Button apply = button(c, "Restart Waze to apply", v -> restart(activity));
+            Button apply = button(c, "Uygulamak için Waze'i yeniden başlat", v -> restart(activity));
             apply.setVisibility(s.hudUntested != ClusterStatus.standaloneActive() ? View.VISIBLE : View.GONE);
             hud.setOnCheckedChangeListener((v, on) -> {
                 preferences.edit().putBoolean(ClusterSettings.HUD_UNTESTED, on).commit();
                 apply.setVisibility(on != ClusterStatus.standaloneActive() ? View.VISIBLE : View.GONE);
             });
             panel.addView(hud);
-            panel.addView(label(c, "First turn off HUD output in OpenBYD or any other HUD app. Restart Waze to apply.", 14));
+            panel.addView(label(c, "Önce OpenBYD veya diğer HUD uygulamasında HUD çıkışını kapatın. Uygulamak için Waze'i yeniden başlatın.", 14));
             panel.addView(apply, spaced(c));
         }
         // Waze draws the cluster with its shared map colours; it has no separate cluster style to choose live.
-        panel.addView(label(c, "Cluster map colours follow Waze: its map colour setting, Apply for car display and the head unit theme. "
+        panel.addView(label(c, "Gösterge harita renkleri Waze'i takip eder: harita renk ayarı, araç ekranı uyarlaması ve multimedya teması. "
                 + ClusterStatus.theme(), 14));
-        slider(panel, c, "Pointer vertical offset (- up, + down)", ClusterSettings.POINTER_VERTICAL, -25, 25, s.pointerVertical);
-        slider(panel, c, "Pointer horizontal offset (- left, + right)", ClusterSettings.POINTER_HORIZONTAL, -25, 25, s.pointerHorizontal);
-        slider(panel, c, "Screen edge margin (Waze buttons and panels)", ClusterSettings.EDGE_MARGIN, 0, 48, s.edgeMargin, " dp");
-        panel.addView(label(c, "Cluster zoom", 17));
+        slider(panel, c, "İmleç dikey kaydırma (- yukarı, + aşağı)", ClusterSettings.POINTER_VERTICAL, -25, 25, s.pointerVertical);
+        slider(panel, c, "İmleç yatay kaydırma (- sol, + sağ)", ClusterSettings.POINTER_HORIZONTAL, -25, 25, s.pointerHorizontal);
+        slider(panel, c, "Ekran kenar boşluğu (Waze buton ve panelleri)", ClusterSettings.EDGE_MARGIN, 0, 48, s.edgeMargin, " dp");
+        panel.addView(label(c, "Gösterge Yakınlaştırma", 17));
         LinearLayout zoom = new LinearLayout(c);
         zoom.setOrientation(LinearLayout.HORIZONTAL);
         LinearLayout.LayoutParams half = new LinearLayout.LayoutParams(0, -2, 1f);
         half.rightMargin = dp(c, 12);
-        zoom.addView(button(c, "Zoom out", v -> zoom(activity, false)), half);
-        zoom.addView(button(c, "Zoom in", v -> zoom(activity, true)), new LinearLayout.LayoutParams(0, -2, 1f));
+        zoom.addView(button(c, "Uzaklaştır", v -> zoom(activity, false)), half);
+        zoom.addView(button(c, "Yakınlaştır", v -> zoom(activity, true)), new LinearLayout.LayoutParams(0, -2, 1f));
         panel.addView(zoom);
-        panel.addView(label(c, "Steering-wheel zoom", 18));
-        toggle(panel, c, "Zoom the cluster map from the steering wheel", ClusterSettings.WHEEL_ZOOM, s.wheelZoom);
-        panel.addView(label(c, "The custom button switches volume + and - between cluster zoom and volume.", 14));
+        panel.addView(label(c, "Direksiyondan Yakınlaştırma", 18));
+        toggle(panel, c, "Gösterge haritasını direksiyon tuşlarıyla yakınlaştır", ClusterSettings.WHEEL_ZOOM, s.wheelZoom);
+        panel.addView(label(c, "Özel tuş, Ses + ve - tuşlarını gösterge yakınlaştırma ile ses ayarı arasında değiştirir.", 14));
         TextView wheelStatus = label(c, "", 14), wheelKeys = label(c, "", 14);
         panel.addView(wheelStatus);
         for (int role = 1; role <= 3; role++) {
             final int assigned = role;
-            panel.addView(button(c, "Assign: " + WheelKeys.roleName(role), v -> WheelKeys.learn(assigned)), spaced(c));
+            panel.addView(button(c, "Tuş Ata: " + WheelKeys.roleName(role), v -> WheelKeys.learn(assigned)), spaced(c));
         }
-        panel.addView(button(c, "Restore BYD Tang buttons", v -> WheelKeys.restoreTang(activity)), spaced(c));
-        panel.addView(label(c, "Recent keys", 14));
+        panel.addView(button(c, "BYD Varsayılan Tuşlarını Yükle", v -> WheelKeys.restoreTang(activity)), spaced(c));
+        panel.addView(label(c, "Son Algılanan Tuşlar", 14));
         panel.addView(wheelKeys);
         // Android 13 BYD builds (DiLink 5.1); also kept visible once the owner has chosen a profile.
         if (Build.VERSION.SDK_INT >= 33 || s.profile != DiLink51Layout.Profile.AUTOMATIC) {
-            panel.addView(label(c, "DiLink 5.1 cluster layout", 18));
-            options(panel, c, "Layout profile", new String[]{"Automatic", "DiLink 5.1", "DiLink 5"}, s.profile.ordinal(),
+            panel.addView(label(c, "DiLink 5.1 Gösterge Düzeni", 18));
+            options(panel, c, "Düzen Profili", new String[]{"Otomatik", "DiLink 5.1", "DiLink 5"}, s.profile.ordinal(),
                     i -> preferences.edit().putString(ClusterSettings.PROFILE, DiLink51Layout.Profile.values()[i].name()).apply());
-            options(panel, c, "Cluster theme", new String[]{"Scenario", "Map", "Simple", "Follow"}, s.mode.ordinal(),
+            options(panel, c, "Gösterge Teması", new String[]{"Senaryo", "Harita", "Basit", "Takip"}, s.mode.ordinal(),
                     i -> preferences.edit().putString(ClusterSettings.MODE, DiLink51Layout.Mode.values()[i].name()).apply());
-            options(panel, c, "Map theme background", new String[]{"Theme default", "Light", "Dark"}, s.contrast.ordinal(),
+            options(panel, c, "Harita Tema Arka Planı", new String[]{"Varsayılan", "Açık", "Koyu"}, s.contrast.ordinal(),
                     i -> preferences.edit().putString(ClusterSettings.CONTRAST, DiLink51Layout.Contrast.values()[i].name()).apply());
-            panel.addView(label(c, "Automatic uses the DiLink 5.1 layout only on verified firmware. Follow tracks the cluster's theme and needs Usage Access, "
-                    + "granted once from a computer: adb shell appops set com.waze GET_USAGE_STATS allow", 14));
+            panel.addView(label(c, "Otomatik seçeneği yalnızca doğrulanmış yazılımlarda DiLink 5.1 düzenini kullanır. Takip seçeneği göstergenin temasını izler ve bilgisayardan bir kez Kullanım Erişimi izni verilmesini gerektirir: adb shell appops set com.waze GET_USAGE_STATS allow", 14));
         }
-        panel.addView(label(c, "Changes apply immediately and are saved automatically.", 14));
-        panel.addView(button(c, "Support and diagnostics", v -> {
+        panel.addView(label(c, "Değişiklikler anında uygulanır ve otomatik kaydedilir.", 14));
+        panel.addView(button(c, "Destek ve Tanılama", v -> {
             try { activity.startActivity(new Intent().setClassName(activity, "local.waze.diagnostics.SupportActivity")); }
-            catch (RuntimeException e) { Toast.makeText(activity, "Support is unavailable.", Toast.LENGTH_LONG).show(); }
+            catch (RuntimeException e) { Toast.makeText(activity, "Destek modülü kullanılamıyor.", Toast.LENGTH_LONG).show(); }
         }), spaced(c));
         LimitedScroll scroll = new LimitedScroll(c);
         scroll.addView(panel);
-        AlertDialog dialog = new AlertDialog.Builder(c).setTitle("Instrument cluster").setView(scroll)
-                .setNeutralButton("Full screen", null).setPositiveButton("Done", null).create();
+        AlertDialog dialog = new AlertDialog.Builder(c).setTitle("Gösterge Paneli (Cluster)").setView(scroll)
+                .setNeutralButton("Tam Ekran", null).setPositiveButton("Tamam", null).create();
         final boolean[] full = {s.panelFullscreen};
         // Keys go to the focused window, which is this panel while it is open.
         dialog.setOnKeyListener((d, code, event) -> WheelKeys.handle(activity, event, "panel"));
