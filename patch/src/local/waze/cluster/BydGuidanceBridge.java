@@ -27,19 +27,25 @@ public final class BydGuidanceBridge {
     public BydGuidanceBridge(Context context, Handler main) {
         this.main = main;
         this.context = context;
+        boolean dilink3 = DiLink3Projection.isCandidate() || ClusterSettings.profile(context) == DiLink51Layout.Profile.DILINK3;
         String rejection = StandaloneHudGate.rejection(context);
         boolean untested = StandaloneHudGate.UNTESTED.equals(rejection);
-        // Another 5.1 build may already drive its HUD through SOME/IP (for example OpenBYD): opt-in only, read at start.
-        standalone = rejection == null || untested && ClusterSettings.state(context).hudUntested;
-        ClusterStatus.untestedHudAvailable = untested;
+        // On DiLink 3 (Android 10), standalone HUD is completely disabled and zero HUD packets are sent.
+        standalone = !dilink3 && (rejection == null || (untested && ClusterSettings.state(context).hudUntested));
+        ClusterStatus.untestedHudAvailable = !dilink3 && untested;
         ClusterStatus.standaloneActive = standalone;
-        ClusterStatus.hud = rejection == null ? "HUD aktarımı: Bağımsız alıcı doğrulandı."
-                : standalone ? "HUD aktarımı: Bağımsız alıcı (Deneysel: Bu yazılım sürümü test edilmedi)."
-                : untested ? "HUD aktarımı: AMap. Bağımsız HUD alıcısı tüm kontrolleri geçti ancak bu yazılım test edilmedi. Aşağıdan deneyebilirsiniz."
-                : "HUD aktarımı: AMap, Bağımsız mod kullanılamıyor (" + rejection + ").";
-        // The AMap adapter is only used when the standalone HUD is not; DiLink 3 names it com.example.amapservice.
+        if (dilink3) {
+            final String adapter = AmapAdapter.packageName(context);
+            ClusterStatus.hud = "HUD aktarımı: Desteklenmiyor (DiLink 3 / Android 10); Dönüş yönlendirmesi: " + adapter + " üzerinden AMap (DiLink 3 aracında DOĞRULANMADI).";
+        } else {
+            ClusterStatus.hud = rejection == null ? "HUD aktarımı: Bağımsız alıcı doğrulandı."
+                    : standalone ? "HUD aktarımı: Bağımsız alıcı (Deneysel: Bu yazılım sürümü test edilmedi)."
+                    : untested ? "HUD aktarımı: AMap. Bağımsız HUD alıcısı tüm kontrolleri geçti ancak bu yazılım test edilmedi. Aşağıdan deneyebilirsiniz."
+                    : "HUD aktarımı: AMap, Bağımsız mod kullanılamıyor (" + rejection + ").";
+            final String adapter = standalone ? AmapAdapter.BYD : AmapAdapter.packageName(context);
+            if (!standalone) ClusterStatus.hud = ClusterStatus.hud.replace("HUD aktarımı: AMap", "HUD aktarımı: " + adapter + " üzerinden AMap");
+        }
         final String adapter = standalone ? AmapAdapter.BYD : AmapAdapter.packageName(context);
-        if (!standalone) ClusterStatus.hud = ClusterStatus.hud.replace("HUD aktarımı: AMap", "HUD aktarımı: " + adapter + " üzerinden AMap");
         SharedPreferences prefs = context.getSharedPreferences("waze_for_byd_guidance", Context.MODE_PRIVATE);
         if (!standalone && untested && prefs.getBoolean("standalone_hud_pending_clear", false)) {
             // The owner turned the experimental output off: clear what a killed process left on the HUD.

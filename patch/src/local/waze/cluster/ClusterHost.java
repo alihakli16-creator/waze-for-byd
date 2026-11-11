@@ -70,6 +70,9 @@ public final class ClusterHost implements DisplayManager.DisplayListener {
             Diagnostics.install(app);
             try { ClusterPanel.install(app); } catch (Throwable e) { Log.e(TAG, "cluster settings panel", e); }
             instance = new ClusterHost(app);
+            if (DiLink3Projection.isCandidate()) {
+                DiLink3Projection.init(app, () -> instance.main.post(instance::reconcile));
+            }
             instance.main.postDelayed(instance.retry, 3000);
         } catch (Throwable e) { Log.e(TAG, "install", e); }
     }
@@ -104,7 +107,11 @@ public final class ClusterHost implements DisplayManager.DisplayListener {
         this.app = app;
         guidance = new BydGuidanceBridge(app, main);
         BroadcastReceiver shutdown = new BroadcastReceiver() {
-            public void onReceive(Context context, Intent intent) { Diagnostics.event("lifecycle", "state", "stopped"); close(); }
+            public void onReceive(Context context, Intent intent) {
+                Diagnostics.event("lifecycle", "state", "stopped");
+                if (DiLink3Projection.isCandidate()) DiLink3Projection.reconcile(false);
+                close();
+            }
         };
         if (Build.VERSION.SDK_INT >= 33) app.registerReceiver(shutdown, new IntentFilter(Intent.ACTION_SHUTDOWN), Context.RECEIVER_NOT_EXPORTED);
         else app.registerReceiver(shutdown, new IntentFilter(Intent.ACTION_SHUTDOWN));
@@ -282,6 +289,12 @@ public final class ClusterHost implements DisplayManager.DisplayListener {
         }
     }
     private boolean layout51() { return DiLink51Layout.active(ClusterSettings.profile(app), Build.FINGERPRINT); }
+    private boolean isDiLink3() {
+        ClusterSettings.State s = ClusterSettings.state(app);
+        if (s.profile == DiLink51Layout.Profile.DILINK3) return true;
+        if (s.profile == DiLink51Layout.Profile.AUTOMATIC && DiLink3Projection.isCandidate()) return true;
+        return false;
+    }
     private void updateMonitor() {
         boolean follow = layout51() && ClusterSettings.mode(app) == DiLink51Layout.Mode.FOLLOW;
         if (follow && monitor == null) {
@@ -344,12 +357,15 @@ public final class ClusterHost implements DisplayManager.DisplayListener {
             try { bind(); } catch (Throwable e) { Log.e(TAG, "bind", e); resetAndRetry(); return; }
         }
         logDisplays();
-        if (!ClusterSettings.state(app).mapEnabled) {
+        ClusterSettings.State s = ClusterSettings.state(app);
+        if (!s.mapEnabled) {
             if (presentation != null) clearMap();
             if (layout51()) flush51(displays.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION), null);
             ClusterStatus.map = "Gösterge paneli ayarlarında kapalı";
+            if (DiLink3Projection.isCandidate()) DiLink3Projection.reconcile(false);
             return;
         }
+        if (isDiLink3()) { reconcileDiLink3(); return; }
         if (layout51()) { reconcile51(); return; }
         Display target = null;
         for (Display d : displays.getDisplays()) {
@@ -422,6 +438,69 @@ public final class ClusterHost implements DisplayManager.DisplayListener {
     }
     private void showing(String value) {
         if (!value.equals(ClusterStatus.map)) { ClusterStatus.map = value; Log.i(TAG, "DiLink 5.1 layout: " + value); }
+    }
+    private void reconcileDiLink3() {
+        ClusterSettings.State s = ClusterSettings.state(app);
+        boolean active = s.mapEnabled && s.dilink3Enabled;
+        DiLink3Projection.reconcile(active);
+        if (!active) {
+            if (presentation != null) dismissMap();
+            DiLink3Projection.windowVisible(false);
+            ClusterStatus.map = "DiLink 3 gösterge yansıtması kapalı / DiLink 3 projection disabled";
+            return;
+        }
+        if (!DiLink3Projection.ready()) {
+            if (presentation != null) dismissMap();
+            DiLink3Projection.windowVisible(false);
+            ClusterStatus.map = DiLink3Projection.status();
+            return;
+        }
+        Display target = null;
+        for (Display d : displays.getDisplays()) {
+            if (DiLink3Projection.matches(d)) {
+                target = d;
+                break;
+            }
+        }
+        if (target == null) {
+            if (presentation != null) dismissMap();
+            DiLink3Projection.windowVisible(false);
+            ClusterStatus.map = "DiLink 3 sanal ekranı bekleniyor / Waiting for DiLink 3 virtual display";
+            main.postDelayed(retry, 3000);
+            return;
+        }
+        if (presentation != null && presentation.getDisplay().getDisplayId() != target.getDisplayId()) {
+            dismissMap();
+        }
+        if (presentation != null) {
+            DiLink3Projection.windowVisible(true);
+            return;
+        }
+        try {
+            final Display selected = target;
+            presentation = new Presentation(app, selected) {
+                protected void onCreate(Bundle state) {
+                    super.onCreate(state);
+                    getWindow().setBackgroundDrawable(new ColorDrawable(Color.BLACK));
+                    getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+                    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                    getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+                    view = surfaceView(getContext());
+                    setContentView(view);
+                }
+            };
+            presentation.show();
+            Point size = new Point();
+            selected.getRealSize(size);
+            ClusterStatus.map = "ekran " + selected.getDisplayId() + " (" + selected.getName() + " " + size.x + "x" + size.y + "), DiLink 3 düzeni";
+            Log.i(TAG, "DiLink 3 sunumu başlatıldı: ekran " + selected.getDisplayId() + " (" + size.x + "x" + size.y + ")");
+            sendSurface();
+        } catch (Throwable e) {
+            Log.e(TAG, "DiLink 3 presentation show failed", e);
+            DiLink3Projection.windowFailed();
+            dismissMap();
+            main.postDelayed(retry, 5000);
+        }
     }
     private void reconcile51() {
         DiLink51Layout.Mode mode = ClusterSettings.mode(app);
@@ -560,10 +639,12 @@ public final class ClusterHost implements DisplayManager.DisplayListener {
                 Diagnostics.event("projection", "state", "created", "display_id", presentation.getDisplay().getDisplayId(), "width", w, "height", h);
                 ClusterStatus.surface = w + "x" + h + ", visible area " + area.toShortString();
                 Log.i(TAG, "surface " + w + "x" + h + " safe " + area);
+                if (isDiLink3()) DiLink3Projection.windowVisible(true);
             }));
         });
     }
     private void destroySurface() {
+        if (isDiLink3()) DiLink3Projection.windowVisible(false);
         SurfaceContainer old = delivered;
         if (old != null && presentation != null) Diagnostics.event("projection", "state", "closed", "display_id", presentation.getDisplay().getDisplayId(), "width", old.getWidth(), "height", old.getHeight());
         delivered = null;
@@ -573,6 +654,7 @@ public final class ClusterHost implements DisplayManager.DisplayListener {
     private void close() { close(true); }
     /** A colours reconnect keeps the car's guidance card; the bridge outlives the session. */
     private void close(boolean endGuidance) {
+        if (DiLink3Projection.isCandidate()) DiLink3Projection.reconcile(false);
         if (endGuidance) guidance.end();
         destroySurface();
         if (car != null && ready) {
@@ -631,7 +713,12 @@ public final class ClusterHost implements DisplayManager.DisplayListener {
     }
     private void resetAndRetry() { close(); main.removeCallbacks(retry); main.postDelayed(retry, 10000); }
     public void onDisplayAdded(int id) { reconcile(); }
-    public void onDisplayRemoved(int id) { reconcile(); }
+    public void onDisplayRemoved(int id) {
+        if (presentation != null && presentation.getDisplay().getDisplayId() == id) {
+            if (isDiLink3()) DiLink3Projection.windowFailed();
+        }
+        reconcile();
+    }
     public void onDisplayChanged(int id) { reconcile(); }
     private final class CarHost extends ICarHost.Stub {
         private final int expected = generation;

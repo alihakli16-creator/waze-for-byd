@@ -9,12 +9,13 @@ public final class ClusterSettings {
     static final String PREFS = "local_cluster_settings", LEGACY_PREFS = "waze_for_byd_cluster";
     public static final String MAP_ENABLED = "map_enabled", VEHICLE_GUIDANCE = "vehicle_guidance",
             HUD_UNTESTED = "hud_untested_firmware", POINTER_VERTICAL = "pointer_vertical", POINTER_HORIZONTAL = "pointer_horizontal", PANEL_FULLSCREEN = "panel_fullscreen", EDGE_MARGIN = "edge_margin", WHEEL_ZOOM = "wheel_zoom",
+            DILINK3_ENABLED = "dilink3_enabled",
             PROFILE = "dilink51_profile", MODE = "dilink51_theme", CONTRAST = "dilink51_background";
     private static boolean migrated;
     private ClusterSettings() { }
 
     public static final class State {
-        public final boolean mapEnabled, vehicleGuidance, hudUntested, panelFullscreen, wheelZoom;
+        public final boolean mapEnabled, vehicleGuidance, hudUntested, panelFullscreen, wheelZoom, dilink3Enabled;
         public final int pointerVertical, pointerHorizontal, edgeMargin;
         public final DiLink51Layout.Profile profile;
         public final DiLink51Layout.Mode mode;
@@ -25,6 +26,7 @@ public final class ClusterSettings {
             hudUntested = p.getBoolean(HUD_UNTESTED, false);
             panelFullscreen = p.getBoolean(PANEL_FULLSCREEN, false);
             wheelZoom = p.getBoolean(WHEEL_ZOOM, false);
+            dilink3Enabled = p.getBoolean(DILINK3_ENABLED, false);
             // Waze places its car marker from the visible area; 0 keeps the layout verified in test.5.
             pointerVertical = Math.max(-25, Math.min(25, p.getInt(POINTER_VERTICAL, 0)));
             pointerHorizontal = Math.max(-25, Math.min(25, p.getInt(POINTER_HORIZONTAL, 0)));
@@ -74,6 +76,10 @@ public final class ClusterSettings {
     public static DiLink51Layout.Profile profile(Context c) { return state(c).profile; }
     public static DiLink51Layout.Mode mode(Context c) { return state(c).mode; }
     public static DiLink51Layout.Contrast contrast(Context c) { return state(c).contrast; }
+    public static DiLink51Layout.Profile parseProfile(String stored) {
+        for (DiLink51Layout.Profile p : DiLink51Layout.Profile.values()) if (p.name().equals(stored)) return p;
+        return DiLink51Layout.Profile.AUTOMATIC;
+    }
     private static <T extends Enum<T>> T read(SharedPreferences p, String key, T[] values, T fallback) {
         String stored = p.getString(key, null);
         for (T value : values) if (value.name().equals(stored)) return value;

@@ -355,16 +355,76 @@ public final class ClusterPanel {
         panel.addView(button(c, "BYD Varsayılan Tuşlarını Yükle", v -> WheelKeys.restoreTang(activity)), spaced(c));
         panel.addView(label(c, "Son Algılanan Tuşlar", 14));
         panel.addView(wheelKeys);
-        // Android 13 BYD builds (DiLink 5.1); also kept visible once the owner has chosen a profile.
-        if (Build.VERSION.SDK_INT >= 33 || s.profile != DiLink51Layout.Profile.AUTOMATIC) {
-            panel.addView(label(c, "DiLink 5.1 Gösterge Düzeni", 18));
-            options(panel, c, "Düzen Profili", new String[]{"Otomatik", "DiLink 5.1", "DiLink 5"}, s.profile.ordinal(),
-                    i -> preferences.edit().putString(ClusterSettings.PROFILE, DiLink51Layout.Profile.values()[i].name()).apply());
-            options(panel, c, "Gösterge Teması", new String[]{"Senaryo", "Harita", "Basit", "Takip"}, s.mode.ordinal(),
-                    i -> preferences.edit().putString(ClusterSettings.MODE, DiLink51Layout.Mode.values()[i].name()).apply());
-            options(panel, c, "Harita Tema Arka Planı", new String[]{"Varsayılan", "Açık", "Koyu"}, s.contrast.ordinal(),
-                    i -> preferences.edit().putString(ClusterSettings.CONTRAST, DiLink51Layout.Contrast.values()[i].name()).apply());
-            panel.addView(label(c, "Otomatik seçeneği yalnızca doğrulanmış yazılımlarda DiLink 5.1 düzenini kullanır. Takip seçeneği göstergenin temasını izler ve bilgisayardan bir kez Kullanım Erişimi izni verilmesini gerektirir: adb shell appops set com.waze GET_USAGE_STATS allow", 14));
+        // Android 13 BYD builds (DiLink 5.1) or Android 10 DiLink 3 candidate; also kept visible once the owner has chosen a profile.
+        if (Build.VERSION.SDK_INT >= 33 || DiLink3Projection.isCandidate() || s.profile != DiLink51Layout.Profile.AUTOMATIC) {
+            panel.addView(label(c, "Gösterge Düzeni (Cluster Layout)", 18));
+            final DiLink51Layout.Profile[] PROFILES = {
+                DiLink51Layout.Profile.AUTOMATIC,
+                DiLink51Layout.Profile.DILINK3,
+                DiLink51Layout.Profile.DILINK51,
+                DiLink51Layout.Profile.DILINK5
+            };
+            final String[] PROFILE_LABELS = { "Otomatik", "DiLink 3", "DiLink 5.1", "DiLink 5" };
+            int selectedProfile = 0;
+            for (int i = 0; i < PROFILES.length; i++) {
+                if (PROFILES[i] == s.profile) { selectedProfile = i; break; }
+            }
+            options(panel, c, "Düzen Profili", PROFILE_LABELS, selectedProfile,
+                    i -> preferences.edit().putString(ClusterSettings.PROFILE, PROFILES[i].name()).apply());
+
+            if (DiLink3Projection.isCandidate() || s.profile == DiLink51Layout.Profile.DILINK3) {
+                Switch d3Switch = new Switch(c);
+                d3Switch.setText("DiLink 3 gösterge yansıtmasını etkinleştir (deneysel)");
+                d3Switch.setTextSize(18);
+                d3Switch.setMinHeight(dp(c, 56));
+                d3Switch.setChecked(s.dilink3Enabled);
+                d3Switch.setOnCheckedChangeListener((v, on) -> {
+                    if (on && !s.dilink3Enabled) {
+                        new AlertDialog.Builder(activity)
+                                .setTitle("DiLink 3 Gösterge Yansıtması")
+                                .setMessage("Bu özellik deneyseldir ve aracınızın yerel ADB (127.0.0.1:5555) servisini kullanır. Lütfen yalnızca araç PARK HALİNDEYKEN etkinleştirin.\n\nEtkinleştirmek istiyor musunuz?")
+                                .setPositiveButton("Etkinleştir", (d, w) -> {
+                                    preferences.edit().putBoolean(ClusterSettings.DILINK3_ENABLED, true).apply();
+                                    d3Switch.setChecked(true);
+                                })
+                                .setNegativeButton("İptal", (d, w) -> d3Switch.setChecked(false))
+                                .setOnCancelListener(d -> d3Switch.setChecked(false))
+                                .show();
+                    } else {
+                        preferences.edit().putBoolean(ClusterSettings.DILINK3_ENABLED, on).apply();
+                    }
+                });
+                panel.addView(d3Switch);
+                panel.addView(label(c, "DiLink 3 durumu: " + DiLink3Projection.status(), 13));
+            }
+
+            if (s.profile != DiLink51Layout.Profile.DILINK3 && (Build.VERSION.SDK_INT >= 33 || s.profile == DiLink51Layout.Profile.DILINK51)) {
+                options(panel, c, "Gösterge Teması", new String[]{"Senaryo", "Harita", "Basit", "Takip"}, s.mode.ordinal(),
+                        i -> preferences.edit().putString(ClusterSettings.MODE, DiLink51Layout.Mode.values()[i].name()).apply());
+                options(panel, c, "Harita Tema Arka Planı", new String[]{"Varsayılan", "Açık", "Koyu"}, s.contrast.ordinal(),
+                        i -> preferences.edit().putString(ClusterSettings.CONTRAST, DiLink51Layout.Contrast.values()[i].name()).apply());
+                panel.addView(label(c, "Otomatik seçeneği yalnızca doğrulanmış yazılımlarda DiLink 5.1 düzenini kullanır. Takip seçeneği göstergenin temasını izler ve bilgisayardan bir kez Kullanım Erişimi izni verilmesini gerektirir: adb shell appops set com.waze GET_USAGE_STATS allow", 14));
+            } else if (DiLink3Projection.isCandidate() || s.profile == DiLink51Layout.Profile.DILINK3) {
+                panel.addView(label(c, "DiLink 3 (Android 10): Takip teması ve DiLink 5.1 özellikleri desteklenmez. Yansıtma AutoContainer sanal ekranı üzerinden tam ekran sağlanır.", 13));
+            }
+        }
+        if (DiLink3Projection.isCandidate() || s.profile == DiLink51Layout.Profile.DILINK3) {
+            panel.addView(button(c, "ADB İznini Başlat / Yetkilendir (Authorize ADB)", v -> {
+                Toast.makeText(activity, "ADB yetkilendirme ve gösterge kontrolü başlatılıyor…", Toast.LENGTH_SHORT).show();
+                DiLink3Projection.retry(activity, true, null);
+            }), spaced(c));
+            panel.addView(button(c, "Orijinal Göstergeyi Geri Yükle (Restore Stock Cluster)", v -> {
+                new AlertDialog.Builder(activity)
+                        .setTitle("Göstergeyi Geri Yükle")
+                        .setMessage("Gösterge paneli sanal yansıtmadan çıkarılarak orijinal fabrika düzenine döndürülecektir. Onaylıyor musunuz?")
+                        .setPositiveButton("Geri Yükle", (dialog, which) -> {
+                            DiLink3Projection.forceRestore(activity, () -> {
+                                Toast.makeText(activity, "Orijinal gösterge düzenine dönüldü", Toast.LENGTH_SHORT).show();
+                            });
+                        })
+                        .setNegativeButton("İptal", null)
+                        .show();
+            }), spaced(c));
         }
         panel.addView(label(c, "Değişiklikler anında uygulanır ve otomatik kaydedilir.", 14));
         panel.addView(button(c, "Destek ve Tanılama", v -> {

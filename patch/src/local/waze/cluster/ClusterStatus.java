@@ -31,6 +31,11 @@ public final class ClusterStatus {
                 .append("\n").append(theme())
                 .append("\nHarita: ").append(map).append("\nWaze katmanı: ").append(surface)
                 .append("\nEkranlar: ").append(displays.isEmpty() ? "bilinmiyor" : displays);
+        if (DiLink3Projection.isCandidate() || settings.profile == DiLink51Layout.Profile.DILINK3) {
+            s.append("\nDiLink 3 yansıtma: ").append(settings.dilink3Enabled ? "etkin" : "kapalı")
+                    .append("\nDiLink 3 durumu: ").append(DiLink3Projection.status())
+                    .append("\nDiLink 3 tanılaması: ").append(DiLink3Projection.diLink3Diagnostics());
+        }
         return s.append("\n").append(hud).append("\n").append(StandaloneHudGate.describe(context)).toString();
     }
 }

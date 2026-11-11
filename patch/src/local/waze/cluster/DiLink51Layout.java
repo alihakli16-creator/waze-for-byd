@@ -9,8 +9,8 @@ public final class DiLink51Layout {
     public static final String FULL = "shared_fission_bg_XDJAScreenProjection_0", SIDE = "shared_fission_bg_XDJAScreenProjection_1";
     public static final int WIDTH = 1920, HEIGHT = 720;
     public enum Theme { SCENARIO, MAP, SIMPLE }
-    /** Which cluster layout code runs. AUTOMATIC only selects DiLink 5.1 on a verified fingerprint. */
-    public enum Profile { AUTOMATIC, DILINK51, DILINK5 }
+    /** Which cluster layout code runs. AUTOMATIC only selects DiLink 5.1 on a verified fingerprint. DILINK3 appended at end. */
+    public enum Profile { AUTOMATIC, DILINK51, DILINK5, DILINK3 }
     /** Fixed theme chosen by the owner, or FOLLOW the stock cluster activities through Usage Access. */
     public enum Mode { SCENARIO, MAP, SIMPLE, FOLLOW }
     public enum Contrast { DEFAULT, LIGHT, DARK }
