@@ -516,5 +516,4 @@ public final class ClusterPanel {
             wheelStatus.postDelayed(this, 500);
         }});
     }
-    }
 }
