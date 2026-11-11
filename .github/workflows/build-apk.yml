@@ -122,7 +122,7 @@ jobs:
             exit 1
           fi
           mkdir -p ~/.android
-          echo "$KEYSTORE_BASE64" | base64 -d > ~/.android/signing.keystore
+          python3 -c "import os, base64, re; data = re.sub(r'\s+', '', os.environ['KEYSTORE_BASE64']); open(os.path.expanduser('~/.android/signing.keystore'), 'wb').write(base64.b64decode(data))"
           echo "WAZE_KEYSTORE=$HOME/.android/signing.keystore" >> $GITHUB_ENV
           echo "WAZE_KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
           echo "WAZE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
